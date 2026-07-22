@@ -22,6 +22,10 @@ pnpm typecheck
 pnpm build
 ```
 
+## GitHub Pages
+
+The production site deploys from `main` to [angeli-arino.github.io/barely-fit](https://angeli-arino.github.io/barely-fit/) through `.github/workflows/deploy-pages.yml`. The build uses the `/barely-fit/` project base path and includes a `404.html` SPA fallback so direct links to application routes continue to work.
+
 ## Project documentation
 
 - [Private-beta scope](docs/product-scope.md)

@@ -21,6 +21,7 @@ const requiredFiles = [
   'src/pages/SettingsPage.tsx',
   'DESIGN-HANDOFF.md',
   'public/manifest.webmanifest',
+  '.github/workflows/deploy-pages.yml',
 ];
 
 const routes = [
@@ -55,6 +56,16 @@ for (const rule of ['indexedDB.open', "const OUTBOX_STORE = 'outbox'", 'queueFor
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.webmanifest'), 'utf8'));
 if (manifest.display !== 'standalone') errors.push('Manifest must use standalone display.');
 if (!Array.isArray(manifest.icons) || manifest.icons.length < 2) errors.push('Manifest icons are incomplete.');
+if (manifest.start_url !== './' || manifest.scope !== './') errors.push('Manifest must remain within the GitHub Pages project path.');
+
+const viteSource = fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8');
+if (!viteSource.includes("'/barely-fit/'")) errors.push('Vite GitHub Pages base path is missing.');
+const mainSource = fs.readFileSync(path.join(root, 'src/main.tsx'), 'utf8');
+if (!mainSource.includes('basename={import.meta.env.BASE_URL}')) errors.push('Router GitHub Pages basename is missing.');
+const pagesWorkflow = fs.readFileSync(path.join(root, '.github/workflows/deploy-pages.yml'), 'utf8');
+for (const rule of ['actions/configure-pages', 'actions/upload-pages-artifact', 'actions/deploy-pages', 'dist/404.html']) {
+  if (!pagesWorkflow.includes(rule)) errors.push(`GitHub Pages workflow rule not found: ${rule}`);
+}
 
 if (errors.length) {
   console.error(errors.join('\n'));
