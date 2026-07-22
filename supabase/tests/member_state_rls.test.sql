@@ -40,14 +40,11 @@ select is(
   0,
   'a Member cannot read another Member state'
 );
-select is(
-  (with attempted_update as (
-    update public.member_state
+select is_empty(
+  $$update public.member_state
     set state = '{"workouts": ["stolen"]}'
     where member_id = '11111111-1111-1111-1111-111111111111'
-    returning 1
-  ) select count(*)::integer from attempted_update),
-  0,
+    returning 1$$,
   'a Member cannot update another Member state'
 );
 
