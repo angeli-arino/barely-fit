@@ -3,6 +3,10 @@ node_modules/
 dist/
 build/
 coverage/
+.pnpm-store/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 # Local configuration and secrets
 .env

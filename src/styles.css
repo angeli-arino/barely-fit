@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --bg-elevated: #111419;
+  --surface: #15191f;
+  --surface-strong: #1b2027;
+  --surface-hover: #222831;
+  --text: #f6f7f8;
+  --text-muted: #9da5af;
+  --text-faint: #6f7884;
+  --border: #2a3039;
+  --border-strong: #3a424d;
+  --accent: #ff6b4a;
+  --accent-hover: #ff8064;
+  --accent-soft: rgba(255, 107, 74, 0.14);
+  --success: #66d19e;
+  --warning: #f2bb62;
+  --danger: #ff6f75;
+  --info: #7eb4ff;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-1: 0 1px 0 rgba(255,255,255,.03), 0 10px 30px rgba(0,0,0,.22);
+  --shadow-2: 0 24px 80px rgba(0,0,0,.5);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --motion-fast: 140ms;
+  --motion-base: 220ms;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f2ee;
+  --bg-elevated: #faf9f6;
+  --surface: #ffffff;
+  --surface-strong: #f1eee8;
+  --surface-hover: #e9e5de;
+  --text: #17191c;
+  --text-muted: #626973;
+  --text-faint: #89909a;
+  --border: #ddd9d2;
+  --border-strong: #c7c1b8;
+  --accent-soft: rgba(220, 68, 39, 0.10);
+  --shadow-1: 0 1px 0 rgba(255,255,255,.8), 0 10px 30px rgba(36,31,24,.08);
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: var(--bg); }
+body { min-width: 320px; min-height: 100dvh; margin: 0; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 75%, white);
+  outline-offset: 2px;
+}
+::selection { background: var(--accent); color: #111; }
+
+.safe-top { padding-top: max(16px, env(safe-area-inset-top)); }
+.safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.tabular { font-variant-numeric: tabular-nums; }
+.metric { font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+.text-balance { text-wrap: balance; }
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-soft { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+.animate-rise { animation: rise var(--motion-base) ease-out both; }
+.animate-pulse-soft { animation: pulse-soft 1.3s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+.input { min-height: 48px; width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-elevated); padding: 0 12px; color: var(--text); outline: none; }
+.input:focus { border-color: var(--accent); }
