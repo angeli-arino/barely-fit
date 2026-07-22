@@ -2,20 +2,21 @@
   "name": "Barely Fit",
   "short_name": "Barely Fit",
   "description": "Private workout planning, logging, history and progress.",
-  "start_url": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0b0d10",
   "theme_color": "#0b0d10",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-maskable.svg",
+      "src": "icon-maskable.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
