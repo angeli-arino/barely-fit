@@ -6,13 +6,12 @@ import { Sheet } from '../components/ui/Sheet';
 import { FormField } from '../components/ui/FormField';
 import { useAppState } from '../state/AppState';
 import type { Exercise, MeasurementType } from '../types';
-import { prototypeMemberId } from '../data/mockData';
 
 const muscles = ['All', 'Quads', 'Glutes', 'Hamstrings', 'Lats', 'Chest', 'Core', 'Cardio'];
 const equipment = ['All equipment', 'Barbell', 'Dumbbells', 'Machine', 'Cable machine', 'Resistance band', 'Mat'];
 
 export function ExerciseCatalogPage() {
-  const { exercises, activeWorkout, dispatch } = useAppState();
+  const { exercises, activeWorkout, dispatch, memberId } = useAppState();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const replacementItemId = searchParams.get('replace');
@@ -48,7 +47,7 @@ export function ExerciseCatalogPage() {
       measurementType,
       instructions: ['Private custom exercise. Add your own setup notes after creation.'],
       custom: true,
-      createdByMemberId: prototypeMemberId,
+      createdByMemberId: memberId,
       placeholderLabel: 'Private custom exercise placeholder',
       provenance: {
         source: 'Private Member',

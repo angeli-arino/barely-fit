@@ -20,7 +20,24 @@ Useful verification commands:
 pnpm verify:static
 pnpm typecheck
 pnpm build
+pnpm test:db # requires the Supabase CLI and a local Supabase stack
 ```
+
+## Private Member setup
+
+The browser only reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`). Never use a service-role key in Vite, GitHub Actions, or the deployed browser bundle.
+
+1. Create a Supabase project and apply the migration with `supabase db push`.
+2. In Supabase Auth, disable public signups and create the one pre-authorized Member account through the dashboard. Then authorize that exact Auth user in the SQL editor:
+
+   ```sql
+   insert into private.authorized_members (member_id)
+   select id from auth.users where email = 'member@example.com';
+   ```
+3. Add the project URL and publishable key as GitHub repository variables named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
+4. Run `supabase test db` to execute the cross-Member RLS test, then deploy `main`.
+
+Supabase persists and silently refreshes the Member session. The app stores Workout state locally first and synchronizes the authenticated, pre-authorized Member's snapshot through the RLS-protected `member_state` table when online.
 
 ## GitHub Pages
 

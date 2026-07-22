@@ -8,7 +8,7 @@ import { useAppState } from '../state/AppState';
 import type { SyncState, TodayScenario } from '../types';
 
 export function SettingsPage() {
-  const { syncState, todayScenario, trainingProfile, raceGoals, dispatch } = useAppState();
+  const { syncState, todayScenario, trainingProfile, raceGoals, dispatch, signOut } = useAppState();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [timerNotifications, setTimerNotifications] = useState(true);
@@ -83,7 +83,7 @@ export function SettingsPage() {
         <Button className="mt-4" variant="ghost" onClick={simulateLoading}>Preview loading recovery</Button>
       </Section>
 
-      <button onClick={() => { dispatch({ type: 'sign-out' }); navigate('/sign-in'); }} className="flex min-h-14 w-full items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-4 text-left text-[var(--danger)]"><LockKeyhole size={18} /><span className="flex-1 font-bold">Sign out of this device</span><ChevronRight size={18} /></button>
+      <button onClick={() => { void signOut().then(() => navigate('/sign-in')); }} className="flex min-h-14 w-full items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] px-4 text-left text-[var(--danger)]"><LockKeyhole size={18} /><span className="flex-1 font-bold">Sign out of this device</span><ChevronRight size={18} /></button>
     </div>
   );
 }

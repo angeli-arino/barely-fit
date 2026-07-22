@@ -7,6 +7,8 @@ const requiredFiles = [
   'src/App.tsx',
   'src/state/AppState.tsx',
   'src/state/persistence.ts',
+  'src/state/remoteState.ts',
+  'src/lib/supabase.ts',
   'src/data/mockData.ts',
   'src/pages/SignInPage.tsx',
   'src/pages/TodayPage.tsx',
@@ -21,7 +23,12 @@ const requiredFiles = [
   'src/pages/SettingsPage.tsx',
   'DESIGN-HANDOFF.md',
   'public/manifest.webmanifest',
+  '.env.example',
+  'supabase/config.toml',
+  'supabase/migrations/20260723000000_private_member_state.sql',
+  'supabase/tests/member_state_rls.test.sql',
   '.github/workflows/deploy-pages.yml',
+  '.github/workflows/database-tests.yml',
 ];
 
 const routes = [
@@ -53,6 +60,24 @@ for (const rule of ['indexedDB.open', "const OUTBOX_STORE = 'outbox'", 'queueFor
   if (!persistenceSource.includes(rule)) errors.push(`Persistence rule not found: ${rule}`);
 }
 
+const supabaseSource = fs.readFileSync(path.join(root, 'src/lib/supabase.ts'), 'utf8');
+for (const rule of ['createClient', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY', 'autoRefreshToken: true', 'persistSession: true', 'validateMemberSession', 'assert_authorized_member']) {
+  if (!supabaseSource.includes(rule)) errors.push(`Supabase client rule not found: ${rule}`);
+}
+if (/service[_-]?role/i.test(supabaseSource)) errors.push('Supabase client must not include a service-role credential.');
+const remoteStateSource = fs.readFileSync(path.join(root, 'src/state/remoteState.ts'), 'utf8');
+for (const rule of ['member_state', '.eq(\'member_id\'', '.upsert']) {
+  if (!remoteStateSource.includes(rule)) errors.push(`Remote state rule not found: ${rule}`);
+}
+const migrationSource = fs.readFileSync(path.join(root, 'supabase/migrations/20260723000000_private_member_state.sql'), 'utf8');
+for (const rule of ['enable row level security', 'force row level security', 'auth.uid()', 'is_authorized_member', 'assert_authorized_member', 'to authenticated']) {
+  if (!migrationSource.includes(rule)) errors.push(`RLS migration rule not found: ${rule}`);
+}
+const rlsTestSource = fs.readFileSync(path.join(root, 'supabase/tests/member_state_rls.test.sql'), 'utf8');
+for (const rule of ['select plan(6)', 'unapproved identity cannot create', 'client authorization check', 'cannot read another Member state', 'cannot update another Member state']) {
+  if (!rlsTestSource.includes(rule)) errors.push(`RLS test rule not found: ${rule}`);
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.webmanifest'), 'utf8'));
 if (manifest.display !== 'standalone') errors.push('Manifest must use standalone display.');
 if (!Array.isArray(manifest.icons) || manifest.icons.length < 2) errors.push('Manifest icons are incomplete.');
@@ -65,6 +90,10 @@ if (!mainSource.includes('basename={import.meta.env.BASE_URL}')) errors.push('Ro
 const pagesWorkflow = fs.readFileSync(path.join(root, '.github/workflows/deploy-pages.yml'), 'utf8');
 for (const rule of ['actions/configure-pages', 'actions/upload-pages-artifact', 'actions/deploy-pages', 'dist/404.html']) {
   if (!pagesWorkflow.includes(rule)) errors.push(`GitHub Pages workflow rule not found: ${rule}`);
+}
+const databaseWorkflow = fs.readFileSync(path.join(root, '.github/workflows/database-tests.yml'), 'utf8');
+for (const rule of ['supabase/setup-cli@', 'supabase db start', 'supabase test db --local']) {
+  if (!databaseWorkflow.includes(rule)) errors.push(`Database test workflow rule not found: ${rule}`);
 }
 
 if (errors.length) {

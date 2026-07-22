@@ -1,10 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { Exercise, RaceGoal, RestTimerState, SetMeasurements, SyncState, TodayScenario, TrainingProfile, Workout, WorkoutTemplate } from '../types';
 import { exercises as baseExercises, initialWorkouts, prototypeMemberId, templates as baseTemplates } from '../data/mockData';
+import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { clearPersistedOutbox, loadPersistedState, savePersistedState } from './persistence';
+import { loadRemoteState, saveRemoteState } from './remoteState';
 
 interface AppState {
   authenticated: boolean;
+  memberId?: string;
   loading: boolean;
   syncState: SyncState;
   todayScenario: TodayScenario;
@@ -20,8 +23,7 @@ interface AppState {
 
 type Action =
   | { type: 'hydrate'; payload: Partial<AppState> }
-  | { type: 'sign-in' }
-  | { type: 'sign-out' }
+  | { type: 'session-signed-out' }
   | { type: 'notify'; message: string }
   | { type: 'set-loading'; value: boolean }
   | { type: 'set-sync'; value: SyncState }
@@ -93,6 +95,21 @@ const defaultState: AppState = {
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const syncAfterLocalEdit = (state: AppState): SyncState => state.syncState === 'offline' ? 'offline' : 'syncing';
 
+function seededStateForMember(memberId: string): AppState {
+  const seeded = clone(defaultState);
+  return {
+    ...seeded,
+    authenticated: true,
+    loading: false,
+    memberId,
+    workouts: seeded.workouts.map((workout) => ({ ...workout, memberId })),
+    templates: seeded.templates.map((template) => ({ ...template, memberId })),
+    exercises: seeded.exercises.map((exercise) => exercise.createdByMemberId === prototypeMemberId
+      ? { ...exercise, createdByMemberId: memberId }
+      : exercise),
+  };
+}
+
 function updateActiveWorkout(state: AppState, updater: (workout: Workout) => Workout): Workout[] {
   return state.workouts.map((workout) => (workout.status === 'active' ? updater(workout) : workout));
 }
@@ -114,10 +131,8 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'hydrate':
       return { ...state, ...action.payload, loading: false };
-    case 'sign-in':
-      return { ...state, authenticated: true, toast: 'Signed in on this device.' };
-    case 'sign-out':
-      return { ...state, authenticated: false, toast: undefined };
+    case 'session-signed-out':
+      return { ...clone(defaultState), loading: false };
     case 'notify':
       return { ...state, toast: action.message };
     case 'set-loading':
@@ -133,7 +148,7 @@ function reducer(state: AppState, action: Action): AppState {
       if (existingActive) return { ...state, toast: 'Resume or finish the current workout first.' };
       const active: Workout = {
         id: `active-${Date.now()}`,
-        memberId: prototypeMemberId,
+        memberId: state.memberId ?? prototypeMemberId,
         templateId: source.id,
         name: source.name,
         date: '2026-07-23',
@@ -320,7 +335,7 @@ function reducer(state: AppState, action: Action): AppState {
         date.setUTCDate(date.getUTCDate() + index * 7);
         return {
           id: `planned-${Date.now()}-${index}`,
-          memberId: prototypeMemberId,
+          memberId: state.memberId ?? prototypeMemberId,
           templateId: source?.id,
           name: action.name,
           date: date.toISOString().slice(0, 10),
@@ -470,10 +485,12 @@ interface AppContextValue extends AppState {
   activeWorkout?: Workout;
   dispatch: React.Dispatch<Action>;
   requestSync: () => void;
+  signIn: (email: string, password: string) => Promise<string | undefined>;
+  signOut: () => Promise<void>;
+  authConfigurationError?: string;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
-const MEMBER_ID = prototypeMemberId;
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, defaultState);
@@ -481,21 +498,69 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void loadPersistedState<AppState>(MEMBER_ID).then((stored) => {
-        if (!cancelled) dispatch({ type: 'hydrate', payload: stored ?? {} });
-      }).catch(() => {
-        if (!cancelled) dispatch({ type: 'hydrate', payload: { syncState: 'error' } });
+    if (!supabase) {
+      dispatch({ type: 'session-signed-out' });
+      return () => { cancelled = true; };
+    }
+    const supabaseClient = supabase;
+
+    const hydrateMember = async (memberId: string) => {
+      dispatch({ type: 'set-loading', value: true });
+      const local = await loadPersistedState<Partial<AppState>>(memberId).catch(() => undefined);
+      let remote: Partial<AppState> | undefined;
+      let remoteUnavailable = false;
+      try {
+        remote = await loadRemoteState<Partial<AppState>>(memberId);
+      } catch {
+        remoteUnavailable = true;
+      }
+      if (cancelled) return;
+      // IndexedDB is the authoritative recovery source while offline. A remote
+      // snapshot is used on a new device that has no local state yet.
+      const stored = local ?? remote;
+      dispatch({
+        type: 'hydrate',
+        payload: {
+          ...seededStateForMember(memberId),
+          ...stored,
+          authenticated: true,
+          memberId,
+          syncState: remoteUnavailable ? 'offline' : remote ? (stored?.syncState ?? 'synced') : 'syncing',
+        },
       });
-    }, 420);
+    };
+
+    const validateAndHydrate = async (memberId: string, shouldHydrate: boolean) => {
+      const sessionStatus = await validateMemberSession();
+      if (cancelled) return;
+      if (sessionStatus === 'revoked') {
+        await supabaseClient.auth.signOut({ scope: 'local' });
+        if (!cancelled) dispatch({ type: 'session-signed-out' });
+      } else if (shouldHydrate) {
+        void hydrateMember(memberId);
+      }
+    };
+
+    void supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) void validateAndHydrate(data.session.user.id, true);
+      else if (!cancelled) dispatch({ type: 'session-signed-out' });
+    }).catch(() => {
+      if (!cancelled) dispatch({ type: 'session-signed-out' });
+    });
+
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) dispatch({ type: 'session-signed-out' });
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) void validateAndHydrate(session.user.id, event === 'SIGNED_IN');
+    });
+
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (state.loading) return;
+    if (state.loading || !state.authenticated || !state.memberId) return;
     const persistable = {
       authenticated: state.authenticated,
       syncState: state.syncState,
@@ -509,17 +574,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
     const queueForSync = state.syncState === 'syncing' || state.syncState === 'offline';
     const revision = ++persistenceRevision.current;
-    void savePersistedState(MEMBER_ID, persistable, queueForSync).then((savedAt) => {
+    void savePersistedState(state.memberId, persistable, queueForSync).then(async (savedAt) => {
       if (state.syncState !== 'syncing') return;
-      window.setTimeout(() => {
+      try {
+        await saveRemoteState(state.memberId!, persistable);
         if (revision !== persistenceRevision.current) return;
-        void clearPersistedOutbox(MEMBER_ID, savedAt);
+        await clearPersistedOutbox(state.memberId!, savedAt);
         dispatch({ type: 'set-sync', value: 'synced' });
-      }, 300);
+      } catch {
+        if (revision === persistenceRevision.current) dispatch({ type: 'set-sync', value: 'error' });
+      }
     }).catch(() => {
       if (state.syncState !== 'offline' && state.syncState !== 'error') dispatch({ type: 'set-sync', value: 'error' });
     });
-  }, [state.authenticated, state.exercises, state.loading, state.raceGoals, state.restTimer, state.syncState, state.templates, state.todayScenario, state.trainingProfile, state.workouts]);
+  }, [state.authenticated, state.exercises, state.loading, state.memberId, state.raceGoals, state.restTimer, state.syncState, state.templates, state.todayScenario, state.trainingProfile, state.workouts]);
 
   useEffect(() => {
     const timer = window.setInterval(() => dispatch({ type: 'timer-tick' }), 1000);
@@ -537,6 +605,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     activeWorkout: state.workouts.find((workout) => workout.status === 'active'),
     dispatch,
     requestSync: () => dispatch({ type: 'set-sync', value: syncAfterLocalEdit(state) }),
+    signIn: async (email, password) => {
+      if (!supabase) return supabaseConfigurationError;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return error ? 'Sign-in failed. Check your private Member credentials.' : undefined;
+    },
+    signOut: async () => {
+      if (supabase) await supabase.auth.signOut({ scope: 'local' });
+      dispatch({ type: 'session-signed-out' });
+    },
+    authConfigurationError: supabaseConfigurationError,
   }), [state]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

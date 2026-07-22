@@ -1,0 +1,10 @@
+project_id = "barely-fit"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["https://angeli-arino.github.io/barely-fit/"]
+enable_signup = false
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
