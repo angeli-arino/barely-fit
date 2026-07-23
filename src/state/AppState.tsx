@@ -6,6 +6,7 @@ import { canDeleteCustomExercise, createCustomExercise, updateCustomExercise, ty
 import { addExerciseToBlock, addSetToExercise, moveExerciseBlock, replaceExerciseInWorkout, updateTemplateFromWorkout } from '../domain/activeWorkout';
 import { adjustRestTimer, dismissRestTimer, startRestTimer, tickRestTimer, toggleRestTimerPause, workoutDurationMinutes } from '../domain/restTimer';
 import { chooseRecoveredHistory, correctCompletedWorkout, deleteCompletedWorkout, recoveredHistorySyncState, restoreDeletedWorkout } from '../domain/workoutHistory';
+import { planWorkoutTemplate, reschedulePlannedWorkout, resolvePlannedWorkout, startPlannedWorkout } from '../domain/workoutSchedule';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { syncRestNotificationJob } from '../lib/restNotifications';
 import { clearPersistedOutbox, loadPersistedStateSnapshot, savePersistedState } from './persistence';
@@ -53,8 +54,8 @@ type Action =
   | { type: 'timer-vibration' }
   | { type: 'update-planned-workout'; workoutId: string; status: Workout['status']; date?: string }
   | { type: 'reschedule-planned-workout'; workoutId: string; date: string; scope: 'occurrence' | 'future' }
-  | { type: 'start-planned-workout'; workoutId: string }
-  | { type: 'add-planned-workout'; name: string; date: string; recurrence?: 'weekly' }
+  | { type: 'start-planned-workout'; workoutId: string; performedDate: string }
+  | { type: 'add-planned-workout'; templateId: string; date: string; weekdays?: number[]; endDate?: string; mutationId: string; today: string }
   | { type: 'save-template'; template: WorkoutTemplate }
   | { type: 'save-training-profile'; profile: TrainingProfile }
   | { type: 'save-race-goal'; raceGoal: RaceGoal }
@@ -277,58 +278,42 @@ function reducer(state: AppState, action: Action): AppState {
     case 'update-planned-workout':
       return {
         ...state,
-        workouts: state.workouts.map((workout) => workout.id !== action.workoutId ? workout : ({ ...workout, status: action.status, date: action.date ?? workout.date })),
+        workouts: action.status === 'skipped'
+          ? resolvePlannedWorkout(state.workouts, action.workoutId, 'skipped', state.memberId ?? '')
+          : state.workouts.map((workout) => workout.id !== action.workoutId || workout.memberId !== state.memberId ? workout : ({ ...workout, status: action.status, date: action.date ?? workout.date })),
         syncState: syncAfterLocalEdit(state),
         toast: action.status === 'skipped' ? 'Workout marked skipped.' : action.date ? 'Planned Workout rescheduled.' : 'Planned Workout updated.',
       };
     case 'reschedule-planned-workout': {
-      const selected = state.workouts.find((workout) => workout.id === action.workoutId);
-      if (!selected) return state;
-      const dayShift = Math.round((new Date(`${action.date}T12:00:00Z`).getTime() - new Date(`${selected.date}T12:00:00Z`).getTime()) / 86400000);
-      const workouts = state.workouts.map((workout) => {
-        const sameSeries = Boolean(selected.recurrenceSeriesId)
-          && workout.recurrenceSeriesId === selected.recurrenceSeriesId
-          && workout.date >= selected.date;
-        if (workout.id !== selected.id && (action.scope !== 'future' || !sameSeries)) return workout;
-        const shifted = new Date(`${workout.date}T12:00:00Z`);
-        shifted.setUTCDate(shifted.getUTCDate() + dayShift);
-        return { ...workout, date: shifted.toISOString().slice(0, 10) };
-      });
+      const workouts = reschedulePlannedWorkout(state.workouts, action.workoutId, action.date, action.scope, state.memberId ?? '');
+      if (workouts === state.workouts) return state;
       return { ...state, workouts, syncState: syncAfterLocalEdit(state), toast: action.scope === 'future' ? 'This and future Planned Workouts moved.' : 'Planned Workout moved.' };
     }
     case 'start-planned-workout': {
       if (state.workouts.some((workout) => workout.status === 'active')) return { ...state, toast: 'Resume or finish the current Active Workout first.' };
+      const workouts = startPlannedWorkout(state.workouts, action.workoutId, state.memberId ?? '', action.performedDate, new Date().toISOString());
+      if (workouts === state.workouts) return state;
       return {
         ...state,
-        workouts: state.workouts.map((workout) => workout.id === action.workoutId ? ({ ...workout, status: 'active', date: '2026-07-23', startedAt: new Date().toISOString() }) : workout),
+        workouts,
         syncState: syncAfterLocalEdit(state),
         todayScenario: 'active',
       };
     }
     case 'add-planned-workout': {
-      const source = state.templates.find((template) => template.name === action.name) ?? state.templates[0];
-      const occurrenceCount = action.recurrence === 'weekly' ? 52 : 1;
-      const recurrenceSeriesId = action.recurrence === 'weekly' ? `weekly-${Date.now()}` : undefined;
-      const recurrenceEnd = new Date(`${action.date}T12:00:00Z`);
-      recurrenceEnd.setUTCDate(recurrenceEnd.getUTCDate() + (occurrenceCount - 1) * 7);
-      const recurrenceEndDate = action.recurrence === 'weekly' ? recurrenceEnd.toISOString().slice(0, 10) : undefined;
-      const plannedWorkouts: Workout[] = Array.from({ length: occurrenceCount }, (_, index) => {
-        const date = new Date(`${action.date}T12:00:00Z`);
-        date.setUTCDate(date.getUTCDate() + index * 7);
-        return {
-          id: `planned-${Date.now()}-${index}`,
-          memberId: state.memberId ?? prototypeMemberId,
-          templateId: source?.id,
-          name: action.name,
-          date: date.toISOString().slice(0, 10),
-          status: 'planned',
-          recurrence: action.recurrence,
-          recurrenceSeriesId,
-          recurrenceEndDate,
-          blocks: source ? clone(source.blocks) : [],
-        };
+      const source = state.templates.find((template) => template.id === action.templateId && template.memberId === state.memberId);
+      if (!source || !state.memberId) return state;
+      const workouts = planWorkoutTemplate({
+        workouts: state.workouts,
+        template: source,
+        memberId: state.memberId,
+        startDate: action.date,
+        weekdays: action.weekdays,
+        endDate: action.endDate,
+        mutationId: action.mutationId,
+        today: action.today,
       });
-      return { ...state, workouts: [...state.workouts, ...plannedWorkouts], syncState: syncAfterLocalEdit(state), toast: action.recurrence ? 'Weekly Planned Workouts added for the next year.' : 'Planned Workout added to the Workout Schedule.' };
+      return { ...state, workouts, syncState: syncAfterLocalEdit(state), toast: action.weekdays?.length ? 'Recurring Planned Workouts added to the Workout Schedule.' : 'Planned Workout added to the Workout Schedule.' };
     }
     case 'save-template':
       return {

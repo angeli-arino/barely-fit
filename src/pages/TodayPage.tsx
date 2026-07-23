@@ -3,18 +3,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Surface } from '../components/ui/Surface';
 import { Button } from '../components/ui/Button';
 import { useAppState } from '../state/AppState';
-import { countCompletedWorkingSets, countTargetWorkingSets, formatSeconds } from '../lib';
+import { countCompletedWorkingSets, countTargetWorkingSets, currentDateInAuckland, formatDate, formatSeconds } from '../lib';
 import { calculateRecentProgress } from '../domain/progress';
 
 export function TodayPage() {
   const { activeWorkout, workouts, exercises, templates, todayScenario, dispatch, syncState } = useAppState();
   const navigate = useNavigate();
-  const todayPlannedWorkout = workouts.find((workout) => workout.date === '2026-07-23' && workout.status === 'planned');
+  const today = currentDateInAuckland();
+  const todayPlannedWorkout = workouts.find((workout) => workout.date === today && workout.status === 'planned');
   const showActive = activeWorkout;
   const completed = activeWorkout ? countCompletedWorkingSets(activeWorkout.blocks) : 0;
   const total = activeWorkout ? countTargetWorkingSets(activeWorkout.blocks) : 0;
   const activeDuration = activeWorkout?.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(activeWorkout.startedAt).getTime()) / 1000)) : 0;
-  const recentProgress = calculateRecentProgress(workouts, exercises, '2026-07-23');
+  const recentProgress = calculateRecentProgress(workouts, exercises, today);
   const startWorkout = (templateId: string) => {
     dispatch({ type: 'start-template', templateId });
     navigate('/workout/active');
@@ -23,7 +24,7 @@ export function TodayPage() {
   return (
     <div className="space-y-7 animate-rise">
       <section>
-        <p className="text-sm font-semibold text-[var(--text-muted)]">Thursday, 23 July</p>
+        <p className="text-sm font-semibold text-[var(--text-muted)]">{formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         <h1 className="mt-1 text-3xl font-black tracking-[-.045em] sm:text-4xl">Today</h1>
       </section>
 
@@ -48,7 +49,7 @@ export function TodayPage() {
             <div className="grid size-11 shrink-0 place-items-center rounded-[13px] bg-[var(--accent-soft)] text-[var(--accent)]"><CalendarClock size={21} /></div>
             <div className="min-w-0 flex-1"><div className="text-xs font-black uppercase tracking-[.12em] text-[var(--text-muted)]">Planned today · 6:30 pm</div><h2 className="mt-1 text-xl font-bold">{todayPlannedWorkout.name}</h2><p className="mt-1 text-sm text-[var(--text-muted)]">Ready from your Workout Schedule</p></div>
           </div>
-          <Button className="mt-5" variant="primary" size="lg" full onClick={() => { dispatch({ type: 'start-planned-workout', workoutId: todayPlannedWorkout.id }); navigate('/workout/active'); }} icon={<Play size={18} />}>Start planned workout</Button>
+          <Button className="mt-5" variant="primary" size="lg" full onClick={() => { dispatch({ type: 'start-planned-workout', workoutId: todayPlannedWorkout.id, performedDate: today }); navigate('/workout/active'); }} icon={<Play size={18} />}>Start planned workout</Button>
           <div className="mt-2 grid grid-cols-2 gap-2"><Button variant="ghost" onClick={() => navigate('/plan')}>Move</Button><Button variant="ghost" onClick={() => navigate('/plan')}>Edit schedule</Button></div>
         </Surface>
       )}

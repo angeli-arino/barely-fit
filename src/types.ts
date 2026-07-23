@@ -105,6 +105,7 @@ export interface Workout {
   recurrence?: 'weekly';
   recurrenceSeriesId?: string;
   recurrenceEndDate?: string;
+  plannedDate?: string;
 }
 
 export interface RaceGoal {

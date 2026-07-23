@@ -8,6 +8,17 @@ export const formatSeconds = (seconds: number) => {
 export const formatDate = (iso: string, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }) =>
   new Intl.DateTimeFormat('en-NZ', options).format(new Date(`${iso}T12:00:00+12:00`));
 
+export const currentDateInAuckland = () => {
+  const parts = new Intl.DateTimeFormat('en-NZ', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
 export const countCompletedWorkingSets = (blocks: ExerciseBlock[]) =>
   blocks.flatMap((block) => block.exercises).flatMap((item) => item.sets).filter((set) => set.kind === 'working' && set.completed).length;
 

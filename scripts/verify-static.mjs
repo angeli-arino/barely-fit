@@ -21,6 +21,7 @@ const requiredFiles = [
   'src/pages/WorkoutDetailPage.tsx',
   'src/pages/ProgressPage.tsx',
   'src/domain/progress.ts',
+  'src/domain/workoutSchedule.ts',
   'src/pages/SettingsPage.tsx',
   'DESIGN-HANDOFF.md',
   'public/manifest.webmanifest',
@@ -52,8 +53,12 @@ for (const route of routes) {
 }
 
 const stateSource = fs.readFileSync(path.join(root, 'src/state/AppState.tsx'), 'utf8');
-for (const rule of ['status === \'active\'', 'savePersistedState', "type: 'update-set-draft'", "type: 'complete-set'", "type: 'timer-tick'", "type: 'correct-completed-workout'", "type: 'save-template'", "type: 'update-template-from-workout'", "type: 'reschedule-planned-workout'", 'recurrenceSeriesId', 'recurrenceEndDate']) {
+for (const rule of ['status === \'active\'', 'savePersistedState', "type: 'update-set-draft'", "type: 'complete-set'", "type: 'timer-tick'", "type: 'correct-completed-workout'", "type: 'save-template'", "type: 'update-template-from-workout'", "type: 'reschedule-planned-workout'"]) {
   if (!stateSource.includes(rule)) errors.push(`State rule not found: ${rule}`);
+}
+const workoutScheduleSource = fs.readFileSync(path.join(root, 'src/domain/workoutSchedule.ts'), 'utf8');
+for (const rule of ['planWorkoutTemplate', 'reschedulePlannedWorkout', 'startPlannedWorkout', 'workoutSchedule', 'recurrenceSeriesId', 'recurrenceEndDate', 'plannedDate']) {
+  if (!workoutScheduleSource.includes(rule)) errors.push(`Workout Schedule rule not found: ${rule}`);
 }
 const todaySource = fs.readFileSync(path.join(root, 'src/pages/TodayPage.tsx'), 'utf8');
 for (const rule of ["workoutId: todayPlannedWorkout.id", 'calculateRecentProgress', 'recentProgress.fourWeekTrainingVolume', 'recentProgress.recentDistance']) {

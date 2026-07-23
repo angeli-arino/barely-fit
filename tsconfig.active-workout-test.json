@@ -6,5 +6,5 @@
     "rootDir": ".",
     "declaration": false
   },
-  "include": ["src/domain/activeWorkout.ts", "src/domain/restTimer.ts", "src/domain/workoutHistory.ts", "src/domain/progress.ts", "src/components/charts/chartLabels.ts"]
+  "include": ["src/domain/activeWorkout.ts", "src/domain/restTimer.ts", "src/domain/workoutHistory.ts", "src/domain/workoutSchedule.ts", "src/domain/progress.ts", "src/components/charts/chartLabels.ts"]
 }

@@ -8,7 +8,7 @@
     "dev": "vite --config vite.config.ts",
     "build": "tsc -b && vite build --config vite.config.ts",
     "preview": "vite preview --config vite.config.ts",
-    "test": "pnpm run test:active-workout && node --test test/rest-timer.test.mjs && node --test test/workout-history.test.mjs && node --test test/progress.test.mjs && node --test test/rest-notification-infra.test.mjs && node --test test/catalog-import.test.mjs && node scripts/verify-static.mjs",
+    "test": "pnpm run test:active-workout && node --test test/rest-timer.test.mjs && node --test test/workout-history.test.mjs && node --test test/workout-schedule.test.mjs && node --test test/progress.test.mjs && node --test test/rest-notification-infra.test.mjs && node --test test/catalog-import.test.mjs && node scripts/verify-static.mjs",
     "test:active-workout": "tsc -p tsconfig.active-workout-test.json && node --test test/active-workout-state.test.mjs",
     "catalog:import": "node scripts/import-wger-catalog.mjs --input data/wger/wger-2026-07-23.json --output src/data/catalog.generated.json --report data/wger/latest-import-report.json --previous src/data/catalog.generated.json",
     "test:db": "supabase test db",
