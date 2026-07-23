@@ -25,12 +25,12 @@ export function ExerciseCatalogPage() {
   const [measurementType, setMeasurementType] = useState<MeasurementType>('reps-load');
   const [error, setError] = useState('');
 
-  const filtered = useMemo(() => exercises.filter((exercise) => {
-    const textMatch = `${exercise.name} ${exercise.primaryMuscles.join(' ')} ${exercise.equipment.join(' ')}`.toLowerCase().includes(query.toLowerCase());
+  const filtered = useMemo(() => exercises.filter((exercise) => (exercise.catalog || exercise.custom) && (() => {
+    const textMatch = `${exercise.name} ${exercise.primaryMuscles.join(' ')} ${exercise.secondaryMuscles.join(' ')} ${exercise.equipment.join(' ')}`.toLowerCase().includes(query.toLowerCase());
     const muscleMatch = muscle === 'All' || exercise.primaryMuscles.includes(muscle) || exercise.secondaryMuscles.includes(muscle);
     const equipmentMatch = equipmentFilter === 'All equipment' || exercise.equipment.some((item) => item.toLowerCase().includes(equipmentFilter.toLowerCase().replace('machine', '').trim()));
     return textMatch && muscleMatch && equipmentMatch;
-  }), [equipmentFilter, exercises, muscle, query]);
+  })()), [equipmentFilter, exercises, muscle, query]);
 
   const createCustom = () => {
     if (!customName.trim()) {
@@ -94,7 +94,9 @@ export function ExerciseCatalogPage() {
       <div className="grid gap-3 md:grid-cols-2">
         {filtered.map((exercise) => (
           <button key={exercise.id} className="flex min-h-24 items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-3 text-left shadow-[var(--shadow-1)] transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-strong)]" onClick={() => setSelected(exercise)}>
-            <div className="grid size-16 shrink-0 place-items-center rounded-[14px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-faint)]"><ImageOff size={21} /><span className="sr-only">Neutral illustration placeholder</span></div>
+            {exercise.illustration
+              ? <img className="size-16 shrink-0 rounded-[14px] object-cover" src={exercise.illustration.url} alt="" />
+              : <div className="grid size-16 shrink-0 place-items-center rounded-[14px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-faint)]"><ImageOff size={21} /><span className="sr-only">Neutral illustration placeholder</span></div>}
             <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="font-bold">{exercise.name}</h2>{exercise.custom && <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[10px] font-black uppercase tracking-[.1em] text-[var(--accent)]">Private</span>}</div><p className="mt-1 text-sm text-[var(--text-muted)]">{exercise.primaryMuscles.join(' · ')}</p><p className="mt-1 truncate text-xs text-[var(--text-faint)]">{exercise.equipment.join(', ')}</p></div><ChevronRight size={18} className="shrink-0 text-[var(--text-faint)]" />
           </button>
         ))}
@@ -102,14 +104,16 @@ export function ExerciseCatalogPage() {
 
       {filtered.length === 0 && <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center"><Search className="mx-auto text-[var(--text-faint)]" /><h2 className="mt-4 font-bold">No matching exercises</h2><p className="mt-2 text-sm text-[var(--text-muted)]">Clear a filter or create a private custom exercise.</p><Button className="mt-4" onClick={() => { setQuery(''); setMuscle('All'); setEquipmentFilter('All equipment'); }}>Clear filters</Button></div>}
 
-      <aside className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--text-muted)]"><div className="flex items-center gap-2 font-bold text-[var(--text)]"><Info size={17} /> Exercise Catalog provenance</div><p className="mt-2">Every Exercise carries source, author, license, snapshot date, modification, and review metadata. Prototype seeds are visibly marked as unverified and cannot be treated as the pinned wger catalog required for release.</p></aside>
+      <aside className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--text-muted)]"><div className="flex items-center gap-2 font-bold text-[var(--text)]"><Info size={17} /> Exercise Catalog provenance</div><p className="mt-2">Every Exercise includes its source, author, exact license, and pinned snapshot metadata. Exercises and illustrations without reviewed, compatible rights are excluded before this offline catalog is generated.</p></aside>
 
       <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)} title={selected?.name ?? 'Exercise'} description={selected ? `${selected.primaryMuscles.join(' · ')} · ${selected.equipment.join(', ')}` : undefined}>
         {selected && <div>
-          <div className="grid aspect-[16/8] place-items-center rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] text-center text-[var(--text-faint)]"><div><ImageOff className="mx-auto" size={26} /><p className="mt-2 text-sm font-semibold">{selected.placeholderLabel}</p><p className="mt-1 text-xs">No copyrighted exercise image included</p></div></div>
+          {selected.illustration
+            ? <img className="aspect-[16/8] w-full rounded-[var(--radius-lg)] object-cover" src={selected.illustration.url} alt="" />
+            : <div className="grid aspect-[16/8] place-items-center rounded-[var(--radius-lg)] border border-dashed border-[var(--border-strong)] bg-[var(--surface)] text-center text-[var(--text-faint)]"><div><ImageOff className="mx-auto" size={26} /><p className="mt-2 text-sm font-semibold">{selected.placeholderLabel}</p><p className="mt-1 text-xs">No approved illustration included</p></div></div>}
           <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-[var(--radius-md)] bg-[var(--surface)] p-3"><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">Measures</div><div className="mt-1 font-bold capitalize">{selected.measurementType.replaceAll('-', ' + ')}</div></div><div className="rounded-[var(--radius-md)] bg-[var(--surface)] p-3"><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">Secondary</div><div className="mt-1 font-bold">{selected.secondaryMuscles.join(', ') || 'None'}</div></div></div>
           <h3 className="mt-5 font-bold">Instructions</h3><ol className="mt-2 space-y-2 text-sm leading-6 text-[var(--text-muted)]">{selected.instructions.map((instruction, index) => <li key={instruction} className="flex gap-3"><span className="metric font-bold text-[var(--text-faint)]">{index + 1}</span><span>{instruction}</span></li>)}</ol>
-          <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm"><div className="font-bold">Provenance</div><dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-[var(--text-muted)]"><dt>Source</dt><dd>{selected.provenance.source}</dd><dt>Author</dt><dd>{selected.provenance.author}</dd><dt>License</dt><dd>{selected.provenance.license}</dd><dt>Snapshot</dt><dd>{selected.provenance.snapshotDate}</dd><dt>Review</dt><dd className="capitalize">{selected.provenance.reviewStatus}</dd></dl></div>
+          <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm"><div className="font-bold">Attribution</div><dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-[var(--text-muted)]"><dt>Source</dt><dd>{selected.provenance.sourceUrl ? <a className="underline" href={selected.provenance.sourceUrl} target="_blank" rel="noreferrer">{selected.provenance.source}</a> : selected.provenance.source}</dd><dt>Author</dt><dd>{selected.provenance.author}</dd><dt>License</dt><dd>{selected.provenance.licenseUrl ? <a className="underline" href={selected.provenance.licenseUrl} target="_blank" rel="noreferrer">{selected.provenance.license}</a> : selected.provenance.license}</dd><dt>Snapshot</dt><dd>{selected.provenance.snapshotDate}</dd><dt>Review</dt><dd className="capitalize">{selected.provenance.reviewStatus}</dd></dl></div>
           {activeWorkout ? <Button className="mt-6" variant="primary" size="lg" full icon={<Plus size={18} />} onClick={addSelected}>{replacementItemId ? 'Replace Exercise' : 'Add to Active Workout'}</Button> : <Button className="mt-6" variant="primary" size="lg" full icon={<Check size={18} />} onClick={() => setSelected(null)}>Inspect Exercise</Button>}
         </div>}
       </Sheet>

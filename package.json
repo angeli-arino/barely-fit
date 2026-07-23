@@ -8,7 +8,8 @@
     "dev": "vite --config vite.config.ts",
     "build": "tsc -b && vite build --config vite.config.ts",
     "preview": "vite preview --config vite.config.ts",
-    "test": "node scripts/verify-static.mjs",
+    "test": "node --test test/catalog-import.test.mjs && node scripts/verify-static.mjs",
+    "catalog:import": "node scripts/import-wger-catalog.mjs --input data/wger/wger-2026-07-23.json --output src/data/catalog.generated.json --report data/wger/latest-import-report.json --previous src/data/catalog.generated.json",
     "test:db": "supabase test db",
     "typecheck": "tsc -b --pretty false",
     "verify:static": "node scripts/verify-static.mjs"

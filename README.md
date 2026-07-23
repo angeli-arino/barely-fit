@@ -23,6 +23,10 @@ pnpm build
 pnpm test:db # requires the Supabase CLI and a local Supabase stack
 ```
 
+## Exercise Catalog
+
+The offline Exercise Catalog is generated from the reviewed, pinned wger snapshot in `data/wger/`. Run `pnpm catalog:import` after reviewing a new snapshot. The importer excludes records with incomplete or contradictory rights metadata and writes `data/wger/latest-import-report.json`, including additions, removals, licensing changes, and duplicate mappings.
+
 ## Private Member setup
 
 The browser only reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`). Never use a service-role key in Vite, GitHub Actions, or the deployed browser bundle.

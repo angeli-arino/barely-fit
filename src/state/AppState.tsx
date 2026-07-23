@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { Exercise, RaceGoal, RestTimerState, SetMeasurements, SyncState, TodayScenario, TrainingProfile, Workout, WorkoutTemplate } from '../types';
-import { exercises as baseExercises, initialWorkouts, prototypeMemberId, templates as baseTemplates } from '../data/mockData';
+import { initialWorkouts, prototypeMemberId, templates as baseTemplates } from '../data/mockData';
+import { exerciseLookup } from '../data/catalog';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { clearPersistedOutbox, loadPersistedState, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
@@ -78,7 +79,7 @@ const defaultState: AppState = {
   todayScenario: 'active',
   workouts: initialWorkouts,
   templates: baseTemplates,
-  exercises: baseExercises,
+  exercises: exerciseLookup,
   trainingProfile: {
     primaryGoals: 'Strength + half marathon',
     availableEquipment: 'Full gym, barbells, machines, dumbbells, bands',

@@ -13,14 +13,26 @@ export interface Exercise {
   measurementType: MeasurementType;
   instructions: string[];
   custom?: boolean;
+  catalog?: boolean;
   createdByMemberId?: string;
   placeholderLabel?: string;
+  illustration?: {
+    url: string;
+    source: string;
+    author: string;
+    license: string;
+    licenseUrl: string;
+    sourceUrl: string;
+  };
   provenance: {
     source: string;
     sourceId: string;
+    sourceUrl?: string;
     author: string;
     license: string;
+    licenseUrl?: string;
     snapshotDate: string;
+    revision?: string;
     modified: boolean;
     reviewStatus: 'placeholder' | 'verified' | 'private';
   };

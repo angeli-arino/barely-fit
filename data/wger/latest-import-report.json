@@ -1,0 +1,16 @@
+{
+  "snapshot": {
+    "source": "wger",
+    "revision": "ea722e0720e1a964e33f4e551b9a9f4d2fcb61d9",
+    "snapshotDate": "2026-07-23",
+    "contentSha256": "83e893ac0d5c1c2d51fe388f042c78d9ccb4c766aaeda37e45baa51e87ea104b"
+  },
+  "imported": 2,
+  "excluded": [],
+  "changes": {
+    "additions": [],
+    "removals": [],
+    "changedLicensing": [],
+    "duplicateMappings": []
+  }
+}

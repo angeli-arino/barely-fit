@@ -1,0 +1,34 @@
+{
+  "snapshot": {
+    "source": "wger",
+    "revision": "ea722e0720e1a964e33f4e551b9a9f4d2fcb61d9",
+    "snapshotDate": "2026-07-23",
+    "contentSha256": "83e893ac0d5c1c2d51fe388f042c78d9ccb4c766aaeda37e45baa51e87ea104b"
+  },
+  "exercises": [
+    {
+      "sourceId": "101",
+      "internalId": "back-squat",
+      "name": "Barbell Back Squat",
+      "instructions": ["Brace before unracking.", "Descend under control to a consistent depth.", "Drive evenly through the whole foot."],
+      "primaryMuscles": ["Quads", "Glutes"],
+      "secondaryMuscles": ["Hamstrings", "Core"],
+      "equipment": ["Barbell", "Rack"],
+      "measurementType": "reps-load",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/101" },
+      "reviewed": true
+    },
+    {
+      "sourceId": "102",
+      "internalId": "plank",
+      "name": "Front Plank",
+      "instructions": ["Stack shoulders over elbows.", "Squeeze glutes.", "Finish when position changes."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": ["Glutes", "Shoulders"],
+      "equipment": ["Mat"],
+      "measurementType": "duration",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/102" },
+      "reviewed": true
+    }
+  ]
+}

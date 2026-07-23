@@ -1,0 +1,90 @@
+{
+  "snapshot": {
+    "source": "wger",
+    "revision": "ea722e0720e1a964e33f4e551b9a9f4d2fcb61d9",
+    "snapshotDate": "2026-07-23",
+    "contentSha256": "e52bc02e62f1e5abfeeb772506a02167d8a542b6261f288d27113334233082d7"
+  },
+  "exercises": [
+    {
+      "sourceId": "101",
+      "name": "Barbell Back Squat",
+      "instructions": ["Brace before unracking.", "Descend under control to a consistent depth."],
+      "primaryMuscles": ["Quads", "Glutes"],
+      "secondaryMuscles": ["Hamstrings", "Core"],
+      "equipment": ["Barbell", "Rack"],
+      "measurementType": "reps-load",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/101" },
+      "reviewed": true
+    },
+    {
+      "sourceId": "102",
+      "name": "Front Plank",
+      "instructions": ["Stack shoulders over elbows.", "Finish when position changes."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": ["Glutes", "Shoulders"],
+      "equipment": ["Mat"],
+      "measurementType": "duration",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/102" },
+      "reviewed": true
+    },
+    {
+      "sourceId": "103",
+      "name": "Unreviewed Illustration",
+      "instructions": ["Excluded."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": [],
+      "equipment": ["Mat"],
+      "measurementType": "reps",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/103" },
+      "image": { "url": "https://example.invalid/unreviewed.png" },
+      "reviewed": true
+    },
+    {
+      "sourceId": "104",
+      "name": "Conflicting Rights",
+      "instructions": ["Excluded."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": [],
+      "equipment": ["Mat"],
+      "measurementType": "reps",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/104" },
+      "image": { "url": "https://example.invalid/conflicting.png", "rights": { "source": "other", "author": "Unknown", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://example.invalid" } },
+      "reviewed": true
+    },
+    {
+      "sourceId": "101",
+      "name": "Duplicate Mapping",
+      "instructions": ["Excluded."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": [],
+      "equipment": ["Mat"],
+      "measurementType": "reps",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/101" },
+      "reviewed": true
+    },
+    {
+      "sourceId": "105",
+      "internalId": "wger-101",
+      "name": "Duplicate Internal Mapping",
+      "instructions": ["Excluded."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": [],
+      "equipment": ["Mat"],
+      "measurementType": "reps",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "CC BY-SA 3.0", "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/", "sourceUrl": "https://wger.de/en/exercise/105" },
+      "reviewed": true
+    },
+    {
+      "sourceId": "106",
+      "name": "Proprietary Rights",
+      "instructions": ["Excluded."],
+      "primaryMuscles": ["Core"],
+      "secondaryMuscles": [],
+      "equipment": ["Mat"],
+      "measurementType": "reps",
+      "descriptionRights": { "source": "wger", "author": "wger contributors", "license": "All rights reserved", "licenseUrl": "https://example.invalid/license", "sourceUrl": "https://wger.de/en/exercise/106" },
+      "reviewed": true
+    }
+  ]
+}
