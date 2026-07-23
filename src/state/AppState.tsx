@@ -161,7 +161,7 @@ function reducer(state: AppState, action: Action): AppState {
         status: 'active',
         blocks: clone(source.blocks),
       };
-      return { ...state, workouts: [active, ...state.workouts], syncState: syncAfterLocalEdit(state), todayScenario: 'active', toast: 'Workout started and saved locally.' };
+      return { ...state, workouts: [active, ...state.workouts], syncState: syncAfterLocalEdit(state), todayScenario: 'active' };
     }
     case 'update-set-draft':
       return {
@@ -185,7 +185,6 @@ function reducer(state: AppState, action: Action): AppState {
           exerciseName: action.exerciseName,
           nextSetLabel: action.nextSetLabel,
         },
-        toast: 'Set complete. Saved locally.',
       };
     }
     case 'add-set': {
@@ -325,7 +324,6 @@ function reducer(state: AppState, action: Action): AppState {
         workouts: state.workouts.map((workout) => workout.id === action.workoutId ? ({ ...workout, status: 'active', date: '2026-07-23', startedAt: new Date().toISOString() }) : workout),
         syncState: syncAfterLocalEdit(state),
         todayScenario: 'active',
-        toast: 'Planned Workout started and saved locally.',
       };
     }
     case 'add-planned-workout': {
@@ -588,6 +586,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const queueForSync = state.syncState === 'syncing' || state.syncState === 'offline';
     const revision = ++persistenceRevision.current;
     void savePersistedState(state.memberId, persistable, queueForSync).then(async (savedAt) => {
+      if (revision === persistenceRevision.current && state.syncState !== 'synced') dispatch({ type: 'notify', message: 'Saved locally.' });
       if (state.syncState !== 'syncing') return;
       try {
         await saveRemoteState(state.memberId!, persistable);
@@ -605,6 +604,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const timer = window.setInterval(() => dispatch({ type: 'timer-tick' }), 1000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const reconnect = () => dispatch({ type: 'set-sync', value: 'syncing' });
+    const disconnect = () => dispatch({ type: 'set-sync', value: 'offline' });
+    window.addEventListener('online', reconnect);
+    window.addEventListener('offline', disconnect);
+    return () => { window.removeEventListener('online', reconnect); window.removeEventListener('offline', disconnect); };
   }, []);
 
   useEffect(() => {
