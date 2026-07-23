@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { trendLabelIndexes } from './chartLabels';
 
 interface Point {
   label: string;
@@ -22,6 +23,7 @@ export function TrendChart({ points, unit, summary }: { points: Point[]; unit: s
     y: padTop + ((max - point.value) / spread) * (height - padTop - padBottom),
   }));
   const path = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const labelledIndexes = trendLabelIndexes(coords.length);
 
   return (
     <div>
@@ -36,8 +38,10 @@ export function TrendChart({ points, unit, summary }: { points: Point[]; unit: s
         {coords.map((point, index) => (
           <g key={`${point.label}-${index}`}>
             <circle cx={point.x} cy={point.y} r="6" fill="var(--surface)" stroke="var(--accent)" strokeWidth="4" />
-            <text x={point.x} y={height - 12} textAnchor="middle" fill="var(--text-faint)" fontSize="13" fontWeight="600">{point.label}</text>
-            <text x={point.x} y={point.y - 14} textAnchor="middle" fill="var(--text)" fontSize="13" fontWeight="700">{point.value}{unit}</text>
+            {labelledIndexes.has(index) && <>
+              <text x={point.x} y={height - 12} textAnchor="middle" fill="var(--text-faint)" fontSize="13" fontWeight="600">{point.label}</text>
+              <text x={point.x} y={point.y - 14} textAnchor="middle" fill="var(--text)" fontSize="13" fontWeight="700">{point.value}{unit}</text>
+            </>}
           </g>
         ))}
       </svg>

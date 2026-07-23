@@ -20,6 +20,7 @@ const requiredFiles = [
   'src/pages/HistoryPage.tsx',
   'src/pages/WorkoutDetailPage.tsx',
   'src/pages/ProgressPage.tsx',
+  'src/domain/progress.ts',
   'src/pages/SettingsPage.tsx',
   'DESIGN-HANDOFF.md',
   'public/manifest.webmanifest',
@@ -55,9 +56,11 @@ for (const rule of ['status === \'active\'', 'savePersistedState', "type: 'updat
   if (!stateSource.includes(rule)) errors.push(`State rule not found: ${rule}`);
 }
 const todaySource = fs.readFileSync(path.join(root, 'src/pages/TodayPage.tsx'), 'utf8');
-for (const rule of ["workoutId: todayPlannedWorkout.id", 'fourWeekVolume', 'recentRun']) {
+for (const rule of ["workoutId: todayPlannedWorkout.id", 'calculateRecentProgress', 'recentProgress.fourWeekTrainingVolume', 'recentProgress.recentDistance']) {
   if (!todaySource.includes(rule)) errors.push(`Today data rule not found: ${rule}`);
 }
+const progressSource = fs.readFileSync(path.join(root, 'src/pages/ProgressPage.tsx'), 'utf8');
+if (!progressSource.includes('calculateExerciseProgress')) errors.push('Progress must use the shared calculation module.');
 const persistenceSource = fs.readFileSync(path.join(root, 'src/state/persistence.ts'), 'utf8');
 for (const rule of ['indexedDB.open', "const OUTBOX_STORE = 'outbox'", 'queueForSync']) {
   if (!persistenceSource.includes(rule)) errors.push(`Persistence rule not found: ${rule}`);

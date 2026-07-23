@@ -4,29 +4,17 @@ import { Surface } from '../components/ui/Surface';
 import { Button } from '../components/ui/Button';
 import { useAppState } from '../state/AppState';
 import { countCompletedWorkingSets, countTargetWorkingSets, formatSeconds } from '../lib';
+import { calculateRecentProgress } from '../domain/progress';
 
 export function TodayPage() {
-  const { activeWorkout, workouts, templates, todayScenario, dispatch, syncState } = useAppState();
+  const { activeWorkout, workouts, exercises, templates, todayScenario, dispatch, syncState } = useAppState();
   const navigate = useNavigate();
   const todayPlannedWorkout = workouts.find((workout) => workout.date === '2026-07-23' && workout.status === 'planned');
   const showActive = activeWorkout;
   const completed = activeWorkout ? countCompletedWorkingSets(activeWorkout.blocks) : 0;
   const total = activeWorkout ? countTargetWorkingSets(activeWorkout.blocks) : 0;
   const activeDuration = activeWorkout?.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(activeWorkout.startedAt).getTime()) / 1000)) : 0;
-  const completedWorkouts = workouts.filter((workout) => workout.status === 'completed');
-  const completedSets = completedWorkouts.flatMap((workout) => workout.blocks.flatMap((block) => block.exercises.flatMap((item) => item.sets
-    .filter((set) => set.kind === 'working' && set.completed)
-    .map((set) => ({ workout, exerciseId: item.exerciseId, set })))));
-  const squatSets = completedSets.filter((entry) => entry.exerciseId === 'back-squat' && entry.set.load != null && entry.set.reps != null);
-  const topSquatSet = [...squatSets].sort((a, b) => (b.set.load! - a.set.load!) || (b.set.reps! - a.set.reps!))[0];
-  const julySquatLoads = squatSets.filter((entry) => entry.workout.date.startsWith('2026-07')).map((entry) => entry.set.load!);
-  const squatGain = julySquatLoads.length ? Math.max(...julySquatLoads) - Math.min(...julySquatLoads) : 0;
-  const fourWeekVolume = completedSets
-    .filter((entry) => entry.workout.date >= '2026-06-26' && entry.workout.date <= '2026-07-23')
-    .reduce((sum, entry) => sum + ((entry.set.load ?? 0) * (entry.set.reps ?? 0)), 0);
-  const recentRun = completedSets
-    .filter((entry) => entry.exerciseId === 'easy-run' && entry.set.distanceKm != null)
-    .sort((a, b) => b.workout.date.localeCompare(a.workout.date))[0];
+  const recentProgress = calculateRecentProgress(workouts, exercises, '2026-07-23');
   const startWorkout = (templateId: string) => {
     dispatch({ type: 'start-template', templateId });
     navigate('/workout/active');
@@ -103,9 +91,9 @@ export function TodayPage() {
       <section>
         <div className="mb-3"><p className="text-xs font-black uppercase tracking-[.12em] text-[var(--text-faint)]">Recent progress</p><h2 className="mt-1 text-xl font-bold">Quiet momentum</h2></div>
         <Surface className="grid divide-y divide-[var(--border)] overflow-hidden sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <div className="p-4"><div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-muted)]"><Gauge size={17} /> Squat top set</div><div className="metric mt-3 text-3xl font-black">{topSquatSet ? `${topSquatSet.set.load} kg × ${topSquatSet.set.reps}` : 'No data'}</div><div className="mt-1 text-xs font-semibold text-[var(--success)]">{squatGain > 0 ? `+${squatGain} kg this month` : 'From completed Working Sets'}</div></div>
-          <div className="p-4"><div className="text-sm font-semibold text-[var(--text-muted)]">Four-week volume</div><div className="metric mt-3 text-3xl font-black">{Math.round(fourWeekVolume).toLocaleString('en-NZ')} kg</div><div className="mt-1 text-xs text-[var(--text-faint)]">Completed Working Sets only</div></div>
-          <div className="p-4"><div className="text-sm font-semibold text-[var(--text-muted)]">Recent run</div><div className="metric mt-3 text-3xl font-black">{recentRun ? `${recentRun.set.distanceKm} km` : 'No data'}</div><div className="mt-1 text-xs text-[var(--text-faint)]">{recentRun?.workout.name ?? 'Complete a run to begin'}</div></div>
+          <div className="p-4"><div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-muted)]"><Gauge size={17} /> {recentProgress.topWeightedSet ? `${recentProgress.topWeightedSet.exerciseName} recent top set` : 'Recent weighted top set'}</div><div className="metric mt-3 text-3xl font-black">{recentProgress.topWeightedSet ? `${recentProgress.topWeightedSet.load} kg × ${recentProgress.topWeightedSet.repetitions}` : 'No data'}</div><div className={`mt-1 text-xs font-semibold ${recentProgress.topWeightedSet && recentProgress.topWeightedSet.monthlyLoadChange < 0 ? 'text-[var(--text-muted)]' : 'text-[var(--success)]'}`}>{recentProgress.topWeightedSet && recentProgress.topWeightedSet.monthlyLoadChange !== 0 ? `${recentProgress.topWeightedSet.monthlyLoadChange > 0 ? '+' : ''}${recentProgress.topWeightedSet.monthlyLoadChange} kg this month` : 'From completed Working Sets'}</div></div>
+          <div className="p-4"><div className="text-sm font-semibold text-[var(--text-muted)]">Four-week volume</div><div className="metric mt-3 text-3xl font-black">{Math.round(recentProgress.fourWeekTrainingVolume).toLocaleString('en-NZ')} kg</div><div className="mt-1 text-xs text-[var(--text-faint)]">Same Progress calculation · Warm-ups excluded</div></div>
+          <div className="p-4"><div className="text-sm font-semibold text-[var(--text-muted)]">Recent distance</div><div className="metric mt-3 text-3xl font-black">{recentProgress.recentDistance ? `${recentProgress.recentDistance.distanceKm} km` : 'No data'}</div><div className="mt-1 text-xs text-[var(--text-faint)]">{recentProgress.recentDistance?.workoutName ?? 'Complete a distance Workout to begin'}</div></div>
         </Surface>
       </section>
 
