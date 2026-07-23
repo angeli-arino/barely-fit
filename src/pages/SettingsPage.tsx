@@ -1,12 +1,14 @@
 import * as Switch from '@radix-ui/react-switch';
-import { Bell, Check, ChevronRight, Cloud, CloudOff, Download, HardDrive, Info, LockKeyhole, Moon, RefreshCw, Ruler, ShieldCheck, Smartphone, Sun, Target, TriangleAlert, UserRound } from 'lucide-react';
+import { Bell, Check, ChevronRight, Cloud, CloudOff, Download, HardDrive, Info, LockKeyhole, Moon, Pencil, RefreshCw, Ruler, ShieldCheck, Smartphone, Sun, Target, Trash2, TriangleAlert, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Surface } from '../components/ui/Surface';
 import { useAppState } from '../state/AppState';
-import type { SyncState, TodayScenario } from '../types';
+import { raceGoalValidationError } from '../state/trainingProfileState';
+import type { RaceGoal, SyncState, TodayScenario } from '../types';
 import { canEnableRestNotifications, enableRestNotifications } from '../lib/restNotifications';
+import { currentDateInAuckland } from '../lib';
 
 export function SettingsPage() {
   const { syncState, todayScenario, trainingProfile, raceGoals, restTimer, memberId, dispatch, signOut } = useAppState();
@@ -18,7 +20,9 @@ export function SettingsPage() {
   const [workoutReminders, setWorkoutReminders] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profileDraft, setProfileDraft] = useState(trainingProfile);
-  const [raceGoalDraft, setRaceGoalDraft] = useState(raceGoals[0]);
+  const [raceGoalDraft, setRaceGoalDraft] = useState<RaceGoal>();
+  const today = currentDateInAuckland();
+  const raceGoalDraftIsValid = Boolean(raceGoalDraft && !raceGoalValidationError(raceGoalDraft, today));
 
   const setAppTheme = (next: 'dark' | 'light') => {
     setTheme(next);
@@ -28,6 +32,11 @@ export function SettingsPage() {
     dispatch({ type: 'save-training-profile', profile: profileDraft });
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1800);
+  };
+  const saveRaceGoal = () => {
+    if (!raceGoalDraft || !raceGoalDraftIsValid) return;
+    dispatch({ type: 'save-race-goal', raceGoal: raceGoalDraft, today });
+    setRaceGoalDraft(undefined);
   };
   const simulateLoading = () => {
     dispatch({ type: 'set-loading', value: true });
@@ -44,20 +53,44 @@ export function SettingsPage() {
 
       <Section title="Training profile" icon={<UserRound size={19} />} description="Defaults used when planning and creating workouts.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Primary goals"><select value={profileDraft.primaryGoals} onChange={(event) => setProfileDraft((current) => ({ ...current, primaryGoals: event.target.value }))} className="input"><option>Strength + half marathon</option><option>Build strength</option><option>Run performance</option><option>General fitness</option></select></Field>
+          <Field label="Primary goals"><input className="input" value={profileDraft.primaryGoals} onChange={(event) => setProfileDraft((current) => ({ ...current, primaryGoals: event.target.value }))} /></Field>
           <Field label="Available equipment"><input className="input" value={profileDraft.availableEquipment} onChange={(event) => setProfileDraft((current) => ({ ...current, availableEquipment: event.target.value }))} /></Field>
           <Field label="Preferred workout length"><select value={profileDraft.preferredWorkoutLengthMin} onChange={(event) => setProfileDraft((current) => ({ ...current, preferredWorkoutLengthMin: Number(event.target.value) }))} className="input"><option value="45">45 minutes</option><option value="60">60 minutes</option><option value="75">75 minutes</option></select></Field>
           <Field label="Weekly frequency"><select value={profileDraft.weeklyFrequency} onChange={(event) => setProfileDraft((current) => ({ ...current, weeklyFrequency: Number(event.target.value) }))} className="input"><option value="4">4 Workouts</option><option value="5">5 Workouts</option><option value="6">6 Workouts</option></select></Field>
           <Field label="Preferred Exercises"><input className="input" value={profileDraft.preferredExercises} onChange={(event) => setProfileDraft((current) => ({ ...current, preferredExercises: event.target.value }))} /></Field>
           <Field label="Avoided Exercises"><input className="input" value={profileDraft.avoidedExercises} onChange={(event) => setProfileDraft((current) => ({ ...current, avoidedExercises: event.target.value }))} /></Field>
-          <Field label="Physical limitations" full><textarea className="input min-h-24 resize-y py-3" value={profileDraft.physicalLimitations} onChange={(event) => setProfileDraft((current) => ({ ...current, physicalLimitations: event.target.value }))} /></Field>
+          <Field label="Physical limitations (optional)" full><textarea className="input min-h-24 resize-y py-3" value={profileDraft.physicalLimitations ?? ''} onChange={(event) => setProfileDraft((current) => ({ ...current, physicalLimitations: event.target.value || undefined }))} /><span className="mt-2 block text-sm leading-6 text-[var(--text-muted)]">Private to your Member data. Record practical training context only; Barely Fit does not provide or infer a medical diagnosis.</span></Field>
         </div>
         <Button className="mt-4" variant="primary" onClick={saveProfile} icon={saved ? <Check size={17} /> : undefined}>{saved ? 'Profile saved' : 'Save profile'}</Button>
       </Section>
 
       <Section title="Race goals" icon={<Target size={19} />} description="Running goals remain part of the private training profile.">
-        {raceGoalDraft && <div className="grid gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 sm:grid-cols-2"><Field label="Event name"><input className="input" value={raceGoalDraft.eventName} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, eventName: event.target.value }))} /></Field><Field label="Date"><input type="date" className="input" value={raceGoalDraft.date} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, date: event.target.value }))} /></Field><Field label="Distance km"><input type="number" step="0.1" className="input" value={raceGoalDraft.distanceKm} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, distanceKm: Number(event.target.value) }))} /></Field><Field label="Target time"><input className="input" value={raceGoalDraft.targetTime ?? ''} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, targetTime: event.target.value || undefined }))} /></Field><Button variant="primary" onClick={() => dispatch({ type: 'save-race-goal', raceGoal: raceGoalDraft })}>Save Race Goal</Button></div>}
-        <Button className="mt-3" variant="ghost" onClick={() => setRaceGoalDraft({ id: `race-goal-${Date.now()}`, eventName: '', date: '2026-11-01', distanceKm: 5 })}>+ Add Race Goal</Button>
+        <div className="space-y-3">
+          {raceGoals.length === 0 && <p className="rounded-[var(--radius-md)] bg-[var(--bg-elevated)] p-4 text-sm text-[var(--text-muted)]">No upcoming Race Goals yet.</p>}
+          {raceGoals.map((raceGoal) => (
+            <div key={raceGoal.id} className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-bold">{raceGoal.eventName}</div>
+                <div className="mt-1 text-sm text-[var(--text-muted)]">{raceGoal.date} · {raceGoal.distanceKm} km{raceGoal.targetTime ? ` · ${raceGoal.targetTime}` : ''}</div>
+              </div>
+              <Button size="sm" variant="ghost" icon={<Pencil size={16} />} onClick={() => setRaceGoalDraft(raceGoal)}>Edit</Button>
+              <Button size="sm" variant="danger" icon={<Trash2 size={16} />} onClick={() => { dispatch({ type: 'delete-race-goal', raceGoalId: raceGoal.id }); if (raceGoalDraft?.id === raceGoal.id) setRaceGoalDraft(undefined); }}>Remove</Button>
+            </div>
+          ))}
+        </div>
+        {raceGoalDraft && (
+          <div className="mt-4 grid gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 sm:grid-cols-2">
+            <Field label="Event name"><input className="input" value={raceGoalDraft.eventName} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, eventName: event.target.value }))} /></Field>
+            <Field label="Date"><input type="date" min={today} className="input" value={raceGoalDraft.date} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, date: event.target.value }))} /></Field>
+            <Field label="Distance km"><input type="number" min="0.1" step="0.1" className="input" value={raceGoalDraft.distanceKm || ''} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, distanceKm: Number(event.target.value) }))} /></Field>
+            <Field label="Target time (optional)"><input className="input" placeholder="HH:MM:SS" value={raceGoalDraft.targetTime ?? ''} onChange={(event) => setRaceGoalDraft((current) => current && ({ ...current, targetTime: event.target.value || undefined }))} /></Field>
+            <div className="flex gap-2 sm:col-span-2">
+              <Button variant="primary" onClick={saveRaceGoal} disabled={!raceGoalDraftIsValid}>Save Race Goal</Button>
+              <Button variant="ghost" onClick={() => setRaceGoalDraft(undefined)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+        {!raceGoalDraft && <Button className="mt-3" variant="ghost" onClick={() => setRaceGoalDraft({ id: crypto.randomUUID(), eventName: '', date: '', distanceKm: 0 })}>+ Add Race Goal</Button>}
       </Section>
 
       <Section title="Units and appearance" icon={<Ruler size={19} />}>

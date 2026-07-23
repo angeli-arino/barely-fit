@@ -125,7 +125,7 @@ export interface TrainingProfile {
   weeklyFrequency: number;
   preferredExercises: string;
   avoidedExercises: string;
-  physicalLimitations: string;
+  physicalLimitations?: string;
 }
 
 export interface RestTimerState {

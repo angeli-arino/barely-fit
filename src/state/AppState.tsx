@@ -11,6 +11,7 @@ import { supabase, supabaseConfigurationError, validateMemberSession } from '../
 import { syncRestNotificationJob } from '../lib/restNotifications';
 import { clearPersistedOutbox, loadPersistedStateSnapshot, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
+import { applyTrainingProfileAction, syncAfterLocalEdit } from './trainingProfileState';
 
 interface AppState {
   authenticated: boolean;
@@ -58,7 +59,8 @@ type Action =
   | { type: 'add-planned-workout'; templateId: string; date: string; weekdays?: number[]; endDate?: string; mutationId: string; today: string }
   | { type: 'save-template'; template: WorkoutTemplate }
   | { type: 'save-training-profile'; profile: TrainingProfile }
-  | { type: 'save-race-goal'; raceGoal: RaceGoal }
+  | { type: 'save-race-goal'; raceGoal: RaceGoal; today: string }
+  | { type: 'delete-race-goal'; raceGoalId: string }
   | { type: 'update-template-from-workout'; workoutId: string }
   | { type: 'add-custom-exercise'; exercise: Exercise }
   | { type: 'create-custom-exercise'; input: CustomExerciseInput }
@@ -106,8 +108,6 @@ const defaultState: AppState = {
 };
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-const syncAfterLocalEdit = (state: AppState): SyncState => state.syncState === 'offline' ? 'offline' : 'syncing';
-
 function seededStateForMember(memberId: string): AppState {
   const seeded = clone(defaultState);
   return {
@@ -325,16 +325,10 @@ function reducer(state: AppState, action: Action): AppState {
         toast: 'Workout Template saved.',
       };
     case 'save-training-profile':
-      return { ...state, trainingProfile: action.profile, syncState: syncAfterLocalEdit(state), toast: 'Training Profile saved.' };
+      return applyTrainingProfileAction(state, action);
     case 'save-race-goal':
-      return {
-        ...state,
-        raceGoals: state.raceGoals.some((raceGoal) => raceGoal.id === action.raceGoal.id)
-          ? state.raceGoals.map((raceGoal) => raceGoal.id === action.raceGoal.id ? action.raceGoal : raceGoal)
-          : [...state.raceGoals, action.raceGoal],
-        syncState: syncAfterLocalEdit(state),
-        toast: 'Race Goal saved.',
-      };
+    case 'delete-race-goal':
+      return applyTrainingProfileAction(state, action);
     case 'update-template-from-workout': {
       const workout = state.workouts.find((candidate) => candidate.id === action.workoutId);
       if (!workout?.templateId) return { ...state, toast: 'This Workout has no source Workout Template.' };
