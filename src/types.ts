@@ -12,6 +12,7 @@ export interface Exercise {
   equipment: string[];
   measurementType: MeasurementType;
   instructions: string[];
+  defaultRestSec?: number;
   custom?: boolean;
   catalog?: boolean;
   createdByMemberId?: string;

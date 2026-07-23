@@ -22,6 +22,9 @@ export function ExerciseCatalogPage() {
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customEquipment, setCustomEquipment] = useState('');
+  const [customMuscles, setCustomMuscles] = useState('');
+  const [customInstructions, setCustomInstructions] = useState('');
+  const [customRestSec, setCustomRestSec] = useState('90');
   const [measurementType, setMeasurementType] = useState<MeasurementType>('reps-load');
   const [error, setError] = useState('');
 
@@ -37,32 +40,12 @@ export function ExerciseCatalogPage() {
       setError('Give the custom exercise a name.');
       return;
     }
-    const customExerciseId = `custom-${Date.now()}`;
-    const exercise: Exercise = {
-      id: customExerciseId,
-      name: customName.trim(),
-      primaryMuscles: ['Custom'],
-      secondaryMuscles: [],
-      equipment: [customEquipment.trim() || 'Other'],
-      measurementType,
-      instructions: ['Private custom exercise. Add your own setup notes after creation.'],
-      custom: true,
-      createdByMemberId: memberId,
-      placeholderLabel: 'Private custom exercise placeholder',
-      provenance: {
-        source: 'Private Member',
-        sourceId: customExerciseId,
-        author: 'Private Member',
-        license: 'Private use only',
-        snapshotDate: new Date().toISOString().slice(0, 10),
-        modified: false,
-        reviewStatus: 'private',
-      },
-    };
-    dispatch({ type: 'add-custom-exercise', exercise });
+    dispatch({ type: 'create-custom-exercise', input: { name: customName, measurementType, primaryMuscles: customMuscles.split(',').map((value) => value.trim()).filter(Boolean), equipment: customEquipment.split(',').map((value) => value.trim()).filter(Boolean), instructions: customInstructions.split('\n').map((value) => value.trim()).filter(Boolean), defaultRestSec: Number(customRestSec) || undefined } });
     setCustomOpen(false);
     setCustomName('');
     setCustomEquipment('');
+    setCustomMuscles('');
+    setCustomInstructions('');
     setError('');
   };
 
@@ -114,6 +97,7 @@ export function ExerciseCatalogPage() {
           <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-[var(--radius-md)] bg-[var(--surface)] p-3"><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">Measures</div><div className="mt-1 font-bold capitalize">{selected.measurementType.replaceAll('-', ' + ')}</div></div><div className="rounded-[var(--radius-md)] bg-[var(--surface)] p-3"><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">Secondary</div><div className="mt-1 font-bold">{selected.secondaryMuscles.join(', ') || 'None'}</div></div></div>
           <h3 className="mt-5 font-bold">Instructions</h3><ol className="mt-2 space-y-2 text-sm leading-6 text-[var(--text-muted)]">{selected.instructions.map((instruction, index) => <li key={instruction} className="flex gap-3"><span className="metric font-bold text-[var(--text-faint)]">{index + 1}</span><span>{instruction}</span></li>)}</ol>
           <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm"><div className="font-bold">Attribution</div><dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-[var(--text-muted)]"><dt>Source</dt><dd>{selected.provenance.sourceUrl ? <a className="underline" href={selected.provenance.sourceUrl} target="_blank" rel="noreferrer">{selected.provenance.source}</a> : selected.provenance.source}</dd><dt>Author</dt><dd>{selected.provenance.author}</dd><dt>License</dt><dd>{selected.provenance.licenseUrl ? <a className="underline" href={selected.provenance.licenseUrl} target="_blank" rel="noreferrer">{selected.provenance.license}</a> : selected.provenance.license}</dd><dt>Snapshot</dt><dd>{selected.provenance.snapshotDate}</dd><dt>Review</dt><dd className="capitalize">{selected.provenance.reviewStatus}</dd></dl></div>
+          {selected.custom && <div className="mt-5 grid grid-cols-2 gap-3"><Button onClick={() => { const name = window.prompt('Custom Exercise name', selected.name); if (name) dispatch({ type: 'edit-custom-exercise', exerciseId: selected.id, input: { name, measurementType: selected.measurementType, primaryMuscles: selected.primaryMuscles, secondaryMuscles: selected.secondaryMuscles, equipment: selected.equipment, instructions: selected.instructions, defaultRestSec: selected.defaultRestSec } }); }}>Edit</Button><Button variant="danger" onClick={() => { dispatch({ type: 'delete-custom-exercise', exerciseId: selected.id }); setSelected(null); }}>Delete</Button></div>}
           {activeWorkout ? <Button className="mt-6" variant="primary" size="lg" full icon={<Plus size={18} />} onClick={addSelected}>{replacementItemId ? 'Replace Exercise' : 'Add to Active Workout'}</Button> : <Button className="mt-6" variant="primary" size="lg" full icon={<Check size={18} />} onClick={() => setSelected(null)}>Inspect Exercise</Button>}
         </div>}
       </Sheet>
@@ -122,6 +106,9 @@ export function ExerciseCatalogPage() {
         <div className="space-y-4">
           <FormField label="Exercise name" placeholder="e.g. Single-leg abduction machine" value={customName} onChange={(event) => { setCustomName(event.target.value); setError(''); }} error={error} />
           <FormField label="Equipment" placeholder="Machine, band, dumbbell…" value={customEquipment} onChange={(event) => setCustomEquipment(event.target.value)} />
+          <FormField label="Primary muscles" placeholder="e.g. Glutes, Core" value={customMuscles} onChange={(event) => setCustomMuscles(event.target.value)} />
+          <FormField label="Instructions" placeholder="One instruction per line" value={customInstructions} onChange={(event) => setCustomInstructions(event.target.value)} />
+          <FormField label="Default Rest Timer (seconds)" type="number" value={customRestSec} onChange={(event) => setCustomRestSec(event.target.value)} />
           <label className="block"><span className="mb-2 block text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]">Measurement type</span><select className="min-h-12 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3" value={measurementType} onChange={(event) => setMeasurementType(event.target.value as MeasurementType)}><option value="reps-load">Load + repetitions</option><option value="reps-assistance">Assistance + repetitions</option><option value="duration">Duration</option><option value="distance-duration">Distance + duration</option><option value="reps">Repetitions only</option></select></label>
           <div className="rounded-[var(--radius-md)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--text-muted)]"><Dumbbell className="mb-2 text-[var(--text-faint)]" size={19} />For dumbbells and loaded carries, load is entered per implement or side. For barbells, load includes the bar.</div>
           <Button variant="primary" size="lg" full onClick={createCustom}>Create exercise</Button>

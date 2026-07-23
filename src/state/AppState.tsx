@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer, useRef } fro
 import type { Exercise, RaceGoal, RestTimerState, SetMeasurements, SyncState, TodayScenario, TrainingProfile, Workout, WorkoutTemplate } from '../types';
 import { initialWorkouts, prototypeMemberId, templates as baseTemplates } from '../data/mockData';
 import { exerciseLookup } from '../data/catalog';
+import { canDeleteCustomExercise, createCustomExercise, updateCustomExercise, type CustomExerciseInput } from '../domain/customExercises';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { clearPersistedOutbox, loadPersistedState, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
@@ -55,6 +56,9 @@ type Action =
   | { type: 'save-race-goal'; raceGoal: RaceGoal }
   | { type: 'update-template-from-workout'; workoutId: string }
   | { type: 'add-custom-exercise'; exercise: Exercise }
+  | { type: 'create-custom-exercise'; input: CustomExerciseInput }
+  | { type: 'edit-custom-exercise'; exerciseId: string; input: CustomExerciseInput }
+  | { type: 'delete-custom-exercise'; exerciseId: string }
   | { type: 'add-exercise-to-active'; exerciseId: string }
   | { type: 'replace-exercise-in-active'; itemId: string; exerciseId: string }
   | { type: 'remove-exercise-from-active'; itemId: string }
@@ -407,6 +411,14 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'add-custom-exercise':
       return { ...state, exercises: [...state.exercises, action.exercise], syncState: syncAfterLocalEdit(state), toast: 'Private Custom Exercise created.' };
+    case 'create-custom-exercise': {
+      try { const exercise = createCustomExercise(action.input, state.memberId ?? prototypeMemberId, `custom-${Date.now()}`); if (state.exercises.some((item) => item.name.toLowerCase() === exercise.name.toLowerCase())) return { ...state, toast: 'Choose a unique Exercise name.' }; return { ...state, exercises: [...state.exercises, exercise], syncState: syncAfterLocalEdit(state), toast: 'Private Custom Exercise created.' }; } catch (error) { return { ...state, toast: error instanceof Error ? error.message : 'Could not create Custom Exercise.' }; }
+    }
+    case 'edit-custom-exercise': {
+      const current = state.exercises.find((exercise) => exercise.id === action.exerciseId); if (!current) return state;
+      try { return { ...state, exercises: state.exercises.map((exercise) => exercise.id === current.id ? updateCustomExercise(current, action.input, state.memberId ?? prototypeMemberId) : exercise), syncState: syncAfterLocalEdit(state), toast: 'Custom Exercise updated.' }; } catch (error) { return { ...state, toast: error instanceof Error ? error.message : 'Could not update Custom Exercise.' }; }
+    }
+    case 'delete-custom-exercise': { const exercise = state.exercises.find((item) => item.id === action.exerciseId); return exercise && canDeleteCustomExercise(exercise, state.workouts, state.memberId ?? prototypeMemberId) ? { ...state, exercises: state.exercises.filter((item) => item.id !== exercise.id), syncState: syncAfterLocalEdit(state), toast: 'Custom Exercise deleted.' } : { ...state, toast: 'This Custom Exercise is used by Workout History and cannot be deleted.' }; }
     case 'add-exercise-to-active': {
       const exercise = state.exercises.find((candidate) => candidate.id === action.exerciseId);
       if (!exercise) return state;
