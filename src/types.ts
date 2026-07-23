@@ -116,6 +116,8 @@ export interface RaceGoal {
 }
 
 export interface TrainingProfile {
+  loadUnit?: 'kg' | 'lb';
+  distanceUnit?: 'km' | 'mi';
   primaryGoals: string;
   availableEquipment: string;
   preferredWorkoutLengthMin: number;

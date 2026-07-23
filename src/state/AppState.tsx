@@ -85,6 +85,8 @@ const defaultState: AppState = {
   templates: baseTemplates,
   exercises: exerciseLookup,
   trainingProfile: {
+    loadUnit: 'kg',
+    distanceUnit: 'km',
     primaryGoals: 'Strength + half marathon',
     availableEquipment: 'Full gym, barbells, machines, dumbbells, bands',
     preferredWorkoutLengthMin: 60,

@@ -55,8 +55,8 @@ export function SettingsPage() {
 
       <Section title="Units and appearance" icon={<Ruler size={19} />}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex min-h-14 items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-elevated)] px-4"><span className="font-semibold">Load</span><span className="rounded-full bg-[var(--surface-strong)] px-3 py-1.5 text-sm font-bold">kg</span></div>
-          <div className="flex min-h-14 items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-elevated)] px-4"><span className="font-semibold">Distance</span><span className="rounded-full bg-[var(--surface-strong)] px-3 py-1.5 text-sm font-bold">km</span></div>
+          <Field label="Load display"><select className="input" value={profileDraft.loadUnit ?? 'kg'} onChange={(event) => setProfileDraft((current) => ({ ...current, loadUnit: event.target.value as 'kg' | 'lb' }))}><option value="kg">kg</option><option value="lb">lb</option></select></Field>
+          <Field label="Distance display"><select className="input" value={profileDraft.distanceUnit ?? 'km'} onChange={(event) => setProfileDraft((current) => ({ ...current, distanceUnit: event.target.value as 'km' | 'mi' }))}><option value="km">km</option><option value="mi">mi</option></select></Field>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-elevated)] p-1"><button className={`flex min-h-12 items-center justify-center gap-2 rounded-[11px] font-bold ${theme === 'dark' ? 'bg-[var(--surface-strong)] text-[var(--text)]' : 'text-[var(--text-muted)]'}`} onClick={() => setAppTheme('dark')}><Moon size={17} /> Dark</button><button className={`flex min-h-12 items-center justify-center gap-2 rounded-[11px] font-bold ${theme === 'light' ? 'bg-[var(--surface-strong)] text-[var(--text)]' : 'text-[var(--text-muted)]'}`} onClick={() => setAppTheme('light')}><Sun size={17} /> Light preview</button></div>
       </Section>
