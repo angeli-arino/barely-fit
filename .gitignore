@@ -20,6 +20,7 @@ test-results/
 .wrangler/
 .supabase/
 .scratch/
+.test-build/
 
 # Editors and operating systems
 .idea/

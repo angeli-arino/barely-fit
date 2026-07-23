@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 const asNumber = (value: string) => value === '' ? undefined : Number(value);
 const asAssistance = (value: string) => value === '' ? undefined : Number.isNaN(Number(value)) ? value : Number(value);
 
-export function SetRow({ set, item, exercise, index }: { set: PerformedSet; item: ExerciseItem; exercise: Exercise; index: number }) {
+export function SetRow({ set, item, exercise, index, label, nextSetLabel: nextSetLabelOverride }: { set: PerformedSet; item: ExerciseItem; exercise: Exercise; index: number; label?: string; nextSetLabel?: string }) {
   const { dispatch } = useAppState();
   const [expanded, setExpanded] = useState(false);
   const updateDraft = (values: Partial<SetMeasurements>) => dispatch({ type: 'update-set-draft', itemId: item.id, setId: set.id, values });
@@ -18,10 +18,11 @@ export function SetRow({ set, item, exercise, index }: { set: PerformedSet; item
   const distance = String(set.distanceKm ?? set.targetDistanceKm ?? '');
   const rir = String(set.rir ?? '');
 
-  const nextSetLabel = useMemo(() => {
+  const calculatedNextSetLabel = useMemo(() => {
     const next = item.sets.slice(index + 1).find((candidate) => !candidate.completed);
     return next ? `${next.kind === 'warmup' ? 'Warm-up' : 'Working'} Set ${item.sets.indexOf(next) + 1}` : 'next Exercise';
   }, [index, item.sets]);
+  const nextSetLabel = nextSetLabelOverride ?? calculatedNextSetLabel;
 
   const complete = () => {
     dispatch({
@@ -55,7 +56,7 @@ export function SetRow({ set, item, exercise, index }: { set: PerformedSet; item
     return (
       <div className="flex min-h-14 items-center gap-3 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--success)_25%,var(--border))] bg-[color-mix(in_srgb,var(--success)_7%,var(--surface))] px-3">
         <div className="grid size-8 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--success)_16%,transparent)] text-[var(--success)]"><Check size={17} strokeWidth={3} /></div>
-        <div className="min-w-0 flex-1"><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]">{set.kind === 'warmup' ? 'Warm-up' : `Set ${index + 1}`}</div><div className="truncate text-sm font-semibold">{pieces || 'Completed'}</div></div>
+        <div className="min-w-0 flex-1"><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]">{label ?? (set.kind === 'warmup' ? 'Warm-up' : `Set ${index + 1}`)}</div><div className="truncate text-sm font-semibold">{pieces || 'Completed'}</div></div>
         <span className="text-xs font-bold text-[var(--text-faint)]">Saved</span>
       </div>
     );
@@ -67,7 +68,7 @@ export function SetRow({ set, item, exercise, index }: { set: PerformedSet; item
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-3">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]"><Circle size={9} fill="currentColor" className={set.kind === 'warmup' ? 'text-[var(--warning)]' : 'text-[var(--accent)]'} />{set.kind === 'warmup' ? 'Warm-up' : `Working Set ${index + 1}`}</div>
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]"><Circle size={9} fill="currentColor" className={set.kind === 'warmup' ? 'text-[var(--warning)]' : 'text-[var(--accent)]'} />{label ?? (set.kind === 'warmup' ? 'Warm-up' : `Working Set ${index + 1}`)}</div>
         <button className="inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--text-muted)] hover:bg-[var(--surface-hover)]" onClick={() => setExpanded(!expanded)}>More <ChevronDown size={15} className={expanded ? 'rotate-180' : ''} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

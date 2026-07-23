@@ -3,6 +3,7 @@ import type { Exercise, RaceGoal, RestTimerState, SetMeasurements, SyncState, To
 import { initialWorkouts, prototypeMemberId, templates as baseTemplates } from '../data/mockData';
 import { exerciseLookup } from '../data/catalog';
 import { canDeleteCustomExercise, createCustomExercise, updateCustomExercise, type CustomExerciseInput } from '../domain/customExercises';
+import { addExerciseToBlock, addSetToExercise, moveExerciseBlock, replaceExerciseInWorkout, updateTemplateFromWorkout } from '../domain/activeWorkout';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { clearPersistedOutbox, loadPersistedState, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
@@ -60,6 +61,7 @@ type Action =
   | { type: 'edit-custom-exercise'; exerciseId: string; input: CustomExerciseInput }
   | { type: 'delete-custom-exercise'; exerciseId: string }
   | { type: 'add-exercise-to-active'; exerciseId: string }
+  | { type: 'add-exercise-to-active-block'; blockId: string; exerciseId: string }
   | { type: 'replace-exercise-in-active'; itemId: string; exerciseId: string }
   | { type: 'remove-exercise-from-active'; itemId: string }
   | { type: 'correct-completed-set'; workoutId: string; setId: string; values: Partial<SetMeasurements> }
@@ -190,20 +192,7 @@ function reducer(state: AppState, action: Action): AppState {
       };
     }
     case 'add-set': {
-      const workouts = updateActiveWorkout(state, (workout) => ({
-        ...workout,
-        blocks: workout.blocks.map((block) => ({
-          ...block,
-          exercises: block.exercises.map((item) => {
-            if (item.id !== action.itemId) return item;
-            const previous = item.sets[item.sets.length - 1];
-            return {
-              ...item,
-              sets: [...item.sets, { ...previous, id: `${item.id}-set-${Date.now()}`, completed: false, completedAt: undefined }],
-            };
-          }),
-        })),
-      }));
+      const workouts = updateActiveWorkout(state, (workout) => addSetToExercise(workout, action.itemId, `${action.itemId}-set-${Date.now()}`));
       return { ...state, workouts, syncState: syncAfterLocalEdit(state), toast: 'Set added.' };
     }
     case 'remove-set': {
@@ -235,14 +224,7 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, workouts, syncState: syncAfterLocalEdit(state) };
     }
     case 'move-block': {
-      const workouts = updateActiveWorkout(state, (workout) => {
-        const blocks = [...workout.blocks];
-        const index = blocks.findIndex((block) => block.id === action.blockId);
-        const next = index + action.direction;
-        if (index < 0 || next < 0 || next >= blocks.length) return workout;
-        [blocks[index], blocks[next]] = [blocks[next], blocks[index]];
-        return { ...workout, blocks };
-      });
+      const workouts = updateActiveWorkout(state, (workout) => moveExerciseBlock(workout, action.blockId, action.direction));
       return { ...state, workouts, syncState: syncAfterLocalEdit(state), toast: 'Exercise order updated.' };
     }
     case 'move-exercise': {
@@ -378,33 +360,9 @@ function reducer(state: AppState, action: Action): AppState {
       if (!workout?.templateId) return { ...state, toast: 'This Workout has no source Workout Template.' };
       return {
         ...state,
-        templates: state.templates.map((template) => template.id === workout.templateId ? ({
-          ...template,
-          name: workout.name,
-          blocks: clone(workout.blocks.map((block) => ({
-            ...block,
-            exercises: block.exercises.map((item) => ({
-              ...item,
-              sets: item.sets.map((set) => ({
-                ...set,
-                targetLoad: set.load ?? set.targetLoad,
-                targetReps: set.reps ?? set.targetReps,
-                targetAssistance: set.assistance ?? set.targetAssistance,
-                targetDurationSec: set.durationSec ?? set.targetDurationSec,
-                targetDistanceKm: set.distanceKm ?? set.targetDistanceKm,
-                load: undefined,
-                reps: undefined,
-                assistance: undefined,
-                durationSec: undefined,
-                distanceKm: undefined,
-                notes: undefined,
-                completed: false,
-                completedAt: undefined,
-              })),
-            })),
-          }))),
-          updatedAt: new Date().toISOString().slice(0, 10),
-        }) : template),
+        templates: state.templates.map((template) => template.id === workout.templateId
+          ? updateTemplateFromWorkout(template, workout, new Date().toISOString().slice(0, 10))
+          : template),
         syncState: syncAfterLocalEdit(state),
         toast: 'Workout Template updated from this completed Workout.',
       };
@@ -444,16 +402,25 @@ function reducer(state: AppState, action: Action): AppState {
       if (!exercise) return state;
       return {
         ...state,
-        workouts: updateActiveWorkout(state, (workout) => ({
-          ...workout,
-          blocks: workout.blocks.map((block) => ({
-            ...block,
-            exercises: block.exercises.map((item) => item.id === action.itemId ? ({ ...item, exerciseId: exercise.id, priorSummary: 'No prior performance for this replacement' }) : item),
-          })),
-        })),
+        workouts: updateActiveWorkout(state, (workout) => replaceExerciseInWorkout(workout, action.itemId, exercise.id, `${action.itemId}-replacement-${Date.now()}`)),
         syncState: syncAfterLocalEdit(state),
         toast: `${exercise.name} replaced the Exercise in this Active Workout.`,
       };
+    }
+    case 'add-exercise-to-active-block': {
+      const exercise = state.exercises.find((candidate) => candidate.id === action.exerciseId);
+      if (!exercise) return state;
+      const activeWorkout = state.workouts.find((workout) => workout.status === 'active');
+      if (!activeWorkout?.blocks.some((block) => block.id === action.blockId)) return { ...state, toast: 'That Exercise Block is no longer available.' };
+      const now = Date.now();
+      const item = {
+        id: `added-item-${now}`,
+        exerciseId: exercise.id,
+        restSec: exercise.defaultRestSec ?? 90,
+        priorSummary: 'No prior performance in this Workout',
+        sets: [{ id: `added-set-${now}`, kind: 'working' as const, targetReps: exercise.measurementType.includes('reps') ? 10 : undefined, targetDurationSec: exercise.measurementType.includes('duration') ? 60 : undefined, targetDistanceKm: exercise.measurementType.includes('distance') ? 1 : undefined, completed: false }],
+      };
+      return { ...state, workouts: updateActiveWorkout(state, (workout) => addExerciseToBlock(workout, action.blockId, item)), syncState: syncAfterLocalEdit(state), toast: `${exercise.name} added to this Exercise Block.` };
     }
     case 'remove-exercise-from-active': {
       const workouts = updateActiveWorkout(state, (workout) => ({

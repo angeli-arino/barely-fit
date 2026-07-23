@@ -15,6 +15,7 @@ export function ExerciseCatalogPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const replacementItemId = searchParams.get('replace');
+  const targetBlockId = searchParams.get('block');
   const [query, setQuery] = useState('');
   const [muscle, setMuscle] = useState('All');
   const [equipmentFilter, setEquipmentFilter] = useState('All equipment');
@@ -54,7 +55,9 @@ export function ExerciseCatalogPage() {
     if (activeWorkout) {
       dispatch(replacementItemId
         ? { type: 'replace-exercise-in-active', itemId: replacementItemId, exerciseId: selected.id }
-        : { type: 'add-exercise-to-active', exerciseId: selected.id });
+        : targetBlockId
+          ? { type: 'add-exercise-to-active-block', blockId: targetBlockId, exerciseId: selected.id }
+          : { type: 'add-exercise-to-active', exerciseId: selected.id });
       setSelected(null);
       navigate('/workout/active');
     }
@@ -98,7 +101,7 @@ export function ExerciseCatalogPage() {
           <h3 className="mt-5 font-bold">Instructions</h3><ol className="mt-2 space-y-2 text-sm leading-6 text-[var(--text-muted)]">{selected.instructions.map((instruction, index) => <li key={instruction} className="flex gap-3"><span className="metric font-bold text-[var(--text-faint)]">{index + 1}</span><span>{instruction}</span></li>)}</ol>
           <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] p-4 text-sm"><div className="font-bold">Attribution</div><dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-[var(--text-muted)]"><dt>Source</dt><dd>{selected.provenance.sourceUrl ? <a className="underline" href={selected.provenance.sourceUrl} target="_blank" rel="noreferrer">{selected.provenance.source}</a> : selected.provenance.source}</dd><dt>Author</dt><dd>{selected.provenance.author}</dd><dt>License</dt><dd>{selected.provenance.licenseUrl ? <a className="underline" href={selected.provenance.licenseUrl} target="_blank" rel="noreferrer">{selected.provenance.license}</a> : selected.provenance.license}</dd><dt>Snapshot</dt><dd>{selected.provenance.snapshotDate}</dd><dt>Review</dt><dd className="capitalize">{selected.provenance.reviewStatus}</dd></dl></div>
           {selected.custom && <div className="mt-5 grid grid-cols-2 gap-3"><Button onClick={() => { const name = window.prompt('Custom Exercise name', selected.name); if (name) dispatch({ type: 'edit-custom-exercise', exerciseId: selected.id, input: { name, measurementType: selected.measurementType, primaryMuscles: selected.primaryMuscles, secondaryMuscles: selected.secondaryMuscles, equipment: selected.equipment, instructions: selected.instructions, defaultRestSec: selected.defaultRestSec } }); }}>Edit</Button><Button variant="danger" onClick={() => { dispatch({ type: 'delete-custom-exercise', exerciseId: selected.id }); setSelected(null); }}>Delete</Button></div>}
-          {activeWorkout ? <Button className="mt-6" variant="primary" size="lg" full icon={<Plus size={18} />} onClick={addSelected}>{replacementItemId ? 'Replace Exercise' : 'Add to Active Workout'}</Button> : <Button className="mt-6" variant="primary" size="lg" full icon={<Check size={18} />} onClick={() => setSelected(null)}>Inspect Exercise</Button>}
+          {activeWorkout ? <Button className="mt-6" variant="primary" size="lg" full icon={<Plus size={18} />} onClick={addSelected}>{replacementItemId ? 'Replace Exercise' : targetBlockId ? 'Add to Exercise Block' : 'Add to Active Workout'}</Button> : <Button className="mt-6" variant="primary" size="lg" full icon={<Check size={18} />} onClick={() => setSelected(null)}>Inspect Exercise</Button>}
         </div>}
       </Sheet>
 
