@@ -51,7 +51,7 @@ for (const route of routes) {
 }
 
 const stateSource = fs.readFileSync(path.join(root, 'src/state/AppState.tsx'), 'utf8');
-for (const rule of ['status === \'active\'', 'savePersistedState', "type: 'update-set-draft'", "type: 'complete-set'", "type: 'timer-tick'", "type: 'correct-completed-set'", "type: 'save-template'", "type: 'update-template-from-workout'", "type: 'reschedule-planned-workout'", 'recurrenceSeriesId', 'recurrenceEndDate']) {
+for (const rule of ['status === \'active\'', 'savePersistedState', "type: 'update-set-draft'", "type: 'complete-set'", "type: 'timer-tick'", "type: 'correct-completed-workout'", "type: 'save-template'", "type: 'update-template-from-workout'", "type: 'reschedule-planned-workout'", 'recurrenceSeriesId', 'recurrenceEndDate']) {
   if (!stateSource.includes(rule)) errors.push(`State rule not found: ${rule}`);
 }
 const todaySource = fs.readFileSync(path.join(root, 'src/pages/TodayPage.tsx'), 'utf8');

@@ -1,14 +1,14 @@
 import { supabase } from '../lib/supabase';
 
-export async function loadRemoteState<T>(memberId: string): Promise<T | undefined> {
+export async function loadRemoteState<T>(memberId: string): Promise<{ value: T; updatedAt: string } | undefined> {
   if (!supabase) return undefined;
   const { data, error } = await supabase
     .from('member_state')
-    .select('state')
+    .select('state, updated_at')
     .eq('member_id', memberId)
     .maybeSingle();
   if (error) throw error;
-  return data?.state as T | undefined;
+  return data ? { value: data.state as T, updatedAt: data.updated_at as string } : undefined;
 }
 
 export async function saveRemoteState<T>(memberId: string, state: T) {

@@ -17,6 +17,12 @@ interface OutboxEntry<T> {
   createdAt: string;
 }
 
+export interface PersistedStateSnapshot<T> {
+  value: Partial<T>;
+  updatedAt: string;
+  pending: boolean;
+}
+
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
@@ -31,14 +37,23 @@ function openDatabase() {
 }
 
 export async function loadPersistedState<T>(memberId: string): Promise<Partial<T> | undefined> {
+  return (await loadPersistedStateSnapshot<T>(memberId))?.value;
+}
+
+export async function loadPersistedStateSnapshot<T>(memberId: string): Promise<PersistedStateSnapshot<T> | undefined> {
   const database = await openDatabase();
-  const stored = await new Promise<StoredMemberState<T> | undefined>((resolve, reject) => {
-    const request = database.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).get(memberId);
-    request.onsuccess = () => resolve(request.result as StoredMemberState<T> | undefined);
-    request.onerror = () => reject(request.error);
+  const result = await new Promise<{ stored?: StoredMemberState<T>; pending?: OutboxEntry<T> }>((resolve, reject) => {
+    const transaction = database.transaction([STATE_STORE, OUTBOX_STORE], 'readonly');
+    const storedRequest = transaction.objectStore(STATE_STORE).get(memberId);
+    const outboxRequest = transaction.objectStore(OUTBOX_STORE).get(`pending-state-${memberId}`);
+    transaction.oncomplete = () => resolve({
+      stored: storedRequest.result as StoredMemberState<T> | undefined,
+      pending: outboxRequest.result as OutboxEntry<T> | undefined,
+    });
+    transaction.onerror = () => reject(transaction.error);
   });
   database.close();
-  return stored?.value;
+  return result.stored ? { value: result.stored.value, updatedAt: result.stored.updatedAt, pending: Boolean(result.pending) } : undefined;
 }
 
 let writeQueue: Promise<unknown> = Promise.resolve();

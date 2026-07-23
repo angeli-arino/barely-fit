@@ -5,9 +5,10 @@ import { exerciseLookup } from '../data/catalog';
 import { canDeleteCustomExercise, createCustomExercise, updateCustomExercise, type CustomExerciseInput } from '../domain/customExercises';
 import { addExerciseToBlock, addSetToExercise, moveExerciseBlock, replaceExerciseInWorkout, updateTemplateFromWorkout } from '../domain/activeWorkout';
 import { adjustRestTimer, dismissRestTimer, startRestTimer, tickRestTimer, toggleRestTimerPause, workoutDurationMinutes } from '../domain/restTimer';
+import { chooseRecoveredHistory, correctCompletedWorkout, deleteCompletedWorkout, recoveredHistorySyncState, restoreDeletedWorkout } from '../domain/workoutHistory';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { syncRestNotificationJob } from '../lib/restNotifications';
-import { clearPersistedOutbox, loadPersistedState, savePersistedState } from './persistence';
+import { clearPersistedOutbox, loadPersistedStateSnapshot, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
 
 interface AppState {
@@ -66,7 +67,7 @@ type Action =
   | { type: 'add-exercise-to-active-block'; blockId: string; exerciseId: string }
   | { type: 'replace-exercise-in-active'; itemId: string; exerciseId: string }
   | { type: 'remove-exercise-from-active'; itemId: string }
-  | { type: 'correct-completed-set'; workoutId: string; setId: string; values: Partial<SetMeasurements> }
+  | { type: 'correct-completed-workout'; workout: Workout }
   | { type: 'delete-workout'; workoutId: string }
   | { type: 'undo-delete' }
   | { type: 'clear-toast' };
@@ -425,31 +426,26 @@ function reducer(state: AppState, action: Action): AppState {
       }));
       return { ...state, workouts, syncState: syncAfterLocalEdit(state), toast: 'Exercise removed from this Workout.' };
     }
-    case 'correct-completed-set':
+    case 'correct-completed-workout': {
+      const result = correctCompletedWorkout(state.workouts, action.workout, state.memberId ?? prototypeMemberId);
+      if (!result.corrected) return { ...state, toast: result.error ?? 'Workout correction was not saved.' };
       return {
         ...state,
-        workouts: state.workouts.map((workout) => workout.id !== action.workoutId ? workout : ({
-          ...workout,
-          blocks: workout.blocks.map((block) => ({
-            ...block,
-            exercises: block.exercises.map((item) => ({
-              ...item,
-              sets: item.sets.map((set) => set.id === action.setId ? ({ ...set, ...action.values }) : set),
-            })),
-          })),
-        })),
+        workouts: result.workouts,
         toast: 'Workout correction saved. Progress recalculated.',
         syncState: syncAfterLocalEdit(state),
       };
+    }
     case 'delete-workout': {
-      const deletedWorkout = state.workouts.find((workout) => workout.id === action.workoutId);
-      return { ...state, workouts: state.workouts.filter((workout) => workout.id !== action.workoutId), deletedWorkout, syncState: syncAfterLocalEdit(state), toast: 'Workout deleted. Undo available.' };
+      const result = deleteCompletedWorkout(state.workouts, action.workoutId, state.memberId ?? prototypeMemberId);
+      if (!result.deletedWorkout) return { ...state, toast: 'Only your own completed Workout can be deleted.' };
+      return { ...state, workouts: result.workouts, deletedWorkout: result.deletedWorkout, syncState: syncAfterLocalEdit(state), toast: 'Workout deleted. Undo available.' };
     }
     case 'undo-delete':
       if (!state.deletedWorkout) return state;
-      return { ...state, workouts: [...state.workouts, state.deletedWorkout], deletedWorkout: undefined, syncState: syncAfterLocalEdit(state), toast: 'Workout restored. Progress recalculated.' };
+      return { ...state, workouts: restoreDeletedWorkout(state.workouts, state.deletedWorkout), deletedWorkout: undefined, syncState: syncAfterLocalEdit(state), toast: 'Workout restored. Progress recalculated.' };
     case 'clear-toast':
-      return { ...state, toast: undefined };
+      return { ...state, toast: undefined, deletedWorkout: undefined };
     default:
       return state;
   }
@@ -484,8 +480,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     const hydrateMember = async (memberId: string) => {
       dispatch({ type: 'set-loading', value: true });
-      const local = await loadPersistedState<Partial<AppState>>(memberId).catch(() => undefined);
-      let remote: Partial<AppState> | undefined;
+      const local = await loadPersistedStateSnapshot<AppState>(memberId).catch(() => undefined);
+      let remote: { value: Partial<AppState>; updatedAt: string } | undefined;
       let remoteUnavailable = false;
       try {
         remote = await loadRemoteState<Partial<AppState>>(memberId);
@@ -493,9 +489,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         remoteUnavailable = true;
       }
       if (cancelled) return;
-      // IndexedDB is the authoritative recovery source while offline. A remote
-      // snapshot is used on a new device that has no local state yet.
-      const stored = local ?? remote;
+      // A pending local mutation must replay. Otherwise the newest timestamp
+      // wins so a stale device cache cannot overwrite newer remote History.
+      const source = chooseRecoveredHistory(local ? { updatedAt: local.updatedAt, pending: local.pending } : undefined, remote?.updatedAt);
+      const stored = source === 'local' ? local?.value : source === 'remote' ? remote?.value : undefined;
       dispatch({
         type: 'hydrate',
         payload: {
@@ -503,7 +500,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           ...stored,
           authenticated: true,
           memberId,
-          syncState: remoteUnavailable ? 'offline' : remote ? (stored?.syncState ?? 'synced') : 'syncing',
+          syncState: source === 'local'
+            ? recoveredHistorySyncState(true, remoteUnavailable, Boolean(remote), navigator.onLine)
+            : remoteUnavailable ? 'offline' : source === 'remote' ? 'synced' : 'syncing',
         },
       });
     };
