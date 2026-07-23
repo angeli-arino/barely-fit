@@ -6,6 +6,7 @@ import { exerciseBlockLabel } from '../../lib';
 import { useAppState } from '../../state/AppState';
 import { SetRow } from './SetRow';
 import { Button } from '../ui/Button';
+import { nextRelevantSetLabel } from '../../domain/restTimer';
 
 type BlockSet = { item: ExerciseItem; itemIndex: number; set: PerformedSet; setIndex: number; round: number };
 
@@ -38,36 +39,28 @@ function ExerciseOptions({ block, item, itemIndex }: { block: ExerciseBlock; ite
 }
 
 function ExerciseSetCard({ block, item, itemIndex, entries }: { block: ExerciseBlock; item: ExerciseItem; itemIndex: number; entries: Array<{ set: PerformedSet; setIndex: number; label?: string; nextSetLabel?: string }> }) {
-  const { exercises, dispatch } = useAppState();
+  const { exercises, activeWorkout, dispatch } = useAppState();
   const exercise = exercises.find((candidate) => candidate.id === item.exerciseId);
   if (!exercise) return null;
   const completed = item.sets.filter((set) => set.completed).length;
   return <article className="p-4 sm:p-5">
     <div className="mb-4 flex items-start gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-[-.02em]">{exercise.name}</h2><span className="rounded-full border border-[var(--border)] px-2 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">{completed}/{item.sets.length} sets</span></div><p className="mt-1 text-sm text-[var(--text-muted)]">{item.priorSummary}</p><div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-faint)]"><TimerReset size={14} /> Default rest {Math.floor(item.restSec / 60)}:{String(item.restSec % 60).padStart(2, '0')}</div></div><ExerciseOptions block={block} item={item} itemIndex={itemIndex} /></div>
-    <div className="space-y-2.5">{entries.map((entry) => <SetRow key={entry.set.id} set={entry.set} item={item} exercise={exercise} index={entry.setIndex} label={entry.label} nextSetLabel={entry.nextSetLabel} />)}</div>
+    <div className="space-y-2.5">{entries.map((entry) => <SetRow key={entry.set.id} set={entry.set} item={item} exercise={exercise} index={entry.setIndex} label={entry.label} nextSetLabel={entry.nextSetLabel ?? (activeWorkout ? nextRelevantSetLabel(activeWorkout.blocks, entry.set.id, exercises) : undefined)} />)}</div>
     <Button className="mt-3" variant="ghost" full icon={<Plus size={17} />} onClick={() => dispatch({ type: 'add-set', itemId: item.id })}>Add set</Button>
   </article>;
 }
 
 export function ExerciseBlockCard({ block, blockIndex, totalBlocks }: { block: ExerciseBlock; blockIndex: number; totalBlocks: number }) {
-  const { exercises, dispatch } = useAppState();
+  const { dispatch } = useAppState();
   const typeLabel = block.type === 'single' ? null : exerciseBlockLabel(block);
   const rounds = block.type === 'single' ? [] : orderedRounds(block);
-  const ordered = rounds.flat();
-  const nextLabel = (entryIndex: number) => {
-    const next = ordered.slice(entryIndex + 1).find((entry) => !entry.set.completed);
-    if (!next) return 'next Exercise';
-    const exercise = exercises.find((candidate) => candidate.id === next.item.exerciseId);
-    return `${exercise?.name ?? 'Exercise'} · Round ${next.round} · ${next.set.kind === 'warmup' ? 'Warm-up' : 'Working Set'}`;
-  };
 
   return <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--bg-elevated)] shadow-[var(--shadow-1)]">
     {typeLabel && <div className="flex min-h-10 items-center gap-2 border-b border-[var(--border)] bg-[var(--accent-soft)] px-4 text-xs font-black uppercase tracking-[.13em] text-[var(--accent)]"><Repeat2 size={15} />{typeLabel}{block.title && <span className="font-medium normal-case tracking-normal text-[var(--text-muted)]">· {block.title}</span>}</div>}
     <div className="divide-y divide-[var(--border)]">{block.type === 'single'
       ? block.exercises.map((item, itemIndex) => <ExerciseSetCard key={item.id} block={block} item={item} itemIndex={itemIndex} entries={item.sets.map((set, setIndex) => ({ set, setIndex }))} />)
       : rounds.map((round, roundIndex) => <div key={`round-${roundIndex}`}><div className="border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-black uppercase tracking-[.12em] text-[var(--accent)]">Round {roundIndex + 1} of {rounds.length}</div>{round.map((entry) => {
-        const entryIndex = ordered.indexOf(entry);
-        return <ExerciseSetCard key={entry.set.id} block={block} item={entry.item} itemIndex={entry.itemIndex} entries={[{ set: entry.set, setIndex: entry.setIndex, label: `Round ${entry.round} · ${entry.set.kind === 'warmup' ? 'Warm-up' : 'Working Set'}`, nextSetLabel: nextLabel(entryIndex) }]} />;
+        return <ExerciseSetCard key={entry.set.id} block={block} item={entry.item} itemIndex={entry.itemIndex} entries={[{ set: entry.set, setIndex: entry.setIndex, label: `Round ${entry.round} · ${entry.set.kind === 'warmup' ? 'Warm-up' : 'Working Set'}` }]} />;
       })}</div>)}</div>
     <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-2"><span className="text-xs font-semibold text-[var(--text-faint)]">Block {blockIndex + 1} of {totalBlocks}</span><div className="flex gap-1"><button className="grid size-10 place-items-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-strong)] disabled:opacity-30" disabled={blockIndex === 0} onClick={() => dispatch({ type: 'move-block', blockId: block.id, direction: -1 })} aria-label="Move exercise block up"><ArrowUp size={17} /></button><button className="grid size-10 place-items-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--surface-strong)] disabled:opacity-30" disabled={blockIndex === totalBlocks - 1} onClick={() => dispatch({ type: 'move-block', blockId: block.id, direction: 1 })} aria-label="Move exercise block down"><ArrowDown size={17} /></button></div></div>
   </section>;

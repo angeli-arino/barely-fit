@@ -6,5 +6,5 @@
     "rootDir": ".",
     "declaration": false
   },
-  "include": ["src/domain/activeWorkout.ts"]
+  "include": ["src/domain/activeWorkout.ts", "src/domain/restTimer.ts"]
 }

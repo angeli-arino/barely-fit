@@ -8,3 +8,6 @@ enable_signup = false
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
+
+[functions.send-rest-notifications]
+verify_jwt = false

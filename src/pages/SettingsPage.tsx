@@ -6,12 +6,15 @@ import { Button } from '../components/ui/Button';
 import { Surface } from '../components/ui/Surface';
 import { useAppState } from '../state/AppState';
 import type { SyncState, TodayScenario } from '../types';
+import { canEnableRestNotifications, enableRestNotifications } from '../lib/restNotifications';
 
 export function SettingsPage() {
-  const { syncState, todayScenario, trainingProfile, raceGoals, dispatch, signOut } = useAppState();
+  const { syncState, todayScenario, trainingProfile, raceGoals, restTimer, memberId, dispatch, signOut } = useAppState();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [timerNotifications, setTimerNotifications] = useState(true);
+  const [timerNotifications, setTimerNotifications] = useState(restTimer.sound || restTimer.vibration);
+  const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => notificationsSupported ? Notification.permission : 'unsupported');
   const [workoutReminders, setWorkoutReminders] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profileDraft, setProfileDraft] = useState(trainingProfile);
@@ -29,6 +32,10 @@ export function SettingsPage() {
   const simulateLoading = () => {
     dispatch({ type: 'set-loading', value: true });
     window.setTimeout(() => dispatch({ type: 'set-loading', value: false }), 900);
+  };
+  const requestTimerNotifications = async () => {
+    if (!memberId || !notificationsSupported || !window.matchMedia('(display-mode: standalone)').matches) return;
+    setNotificationPermission(await enableRestNotifications(memberId));
   };
 
   return (
@@ -62,14 +69,15 @@ export function SettingsPage() {
       </Section>
 
       <Section title="Notifications" icon={<Bell size={19} />} description="Permission and delivery state for time-sensitive training cues.">
-        <SettingToggle label="Rest timer alerts" description="Sound and vibration when rest reaches zero." checked={timerNotifications} onCheckedChange={setTimerNotifications} status="Allowed" />
+        <SettingToggle label="Foreground rest alerts" description="Sound and vibration when rest reaches zero while Barely Fit is open." checked={timerNotifications} onCheckedChange={(checked) => { setTimerNotifications(checked); if (restTimer.sound !== checked) dispatch({ type: 'timer-sound' }); if (restTimer.vibration !== checked) dispatch({ type: 'timer-vibration' }); }} status={timerNotifications ? 'On' : 'Off'} />
         <SettingToggle label="Workout reminders" description="Optional reminder before a planned workout." checked={workoutReminders} onCheckedChange={setWorkoutReminders} status={workoutReminders ? 'Allowed' : 'Off'} />
-        <p className="mt-3 text-xs leading-5 text-[var(--text-faint)]">Prototype toggles only. No push server or browser permission request is implemented.</p>
+        <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--bg-elevated)] p-3 text-sm leading-6 text-[var(--text-muted)]"><strong className="text-[var(--text)]">Background rest alerts require the installed PWA.</strong> Add Barely Fit to your Home Screen, then allow notifications. We only use permission to tell you that a Rest Timer has finished.</div>
+        {notificationPermission === 'unsupported' || !canEnableRestNotifications() ? <p className="mt-3 text-sm text-[var(--text-muted)]">Background alerts are unavailable until this deployment is configured for Web Push.</p> : notificationPermission === 'granted' ? <p className="mt-3 text-sm font-semibold text-[var(--success)]">Rest timer notifications are allowed on this device.</p> : <Button className="mt-3" onClick={() => void requestTimerNotifications()} disabled={!window.matchMedia('(display-mode: standalone)').matches}>Enable background rest alerts</Button>}
       </Section>
 
       <Section title="Install on iPhone" icon={<Download size={19} />} description="Shown when the app is not detected as installed.">
         <ol className="space-y-3 text-sm leading-6 text-[var(--text-muted)]"><li className="flex gap-3"><span className="metric font-bold text-[var(--text-faint)]">1</span><span>Open the app in Chrome on iPhone.</span></li><li className="flex gap-3"><span className="metric font-bold text-[var(--text-faint)]">2</span><span>Use Share, then choose Add to Home Screen.</span></li><li className="flex gap-3"><span className="metric font-bold text-[var(--text-faint)]">3</span><span>Launch Barely Fit from the Home Screen for safe-area and standalone behaviour.</span></li></ol>
-        <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-md)] bg-[var(--bg-elevated)] p-3 text-sm"><Info size={17} className="mt-0.5 shrink-0 text-[var(--text-faint)]" /><span className="text-[var(--text-muted)]">The prototype includes a manifest and iOS meta tags, but deliberately excludes a service worker.</span></div>
+        <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-md)] bg-[var(--bg-elevated)] p-3 text-sm"><Info size={17} className="mt-0.5 shrink-0 text-[var(--text-faint)]" /><span className="text-[var(--text-muted)]">The installed PWA registers a service worker for rest-complete notifications. You can continue logging while a Rest Timer runs.</span></div>
       </Section>
 
       <Section title="Storage and sign-in" icon={<HardDrive size={19} />}>

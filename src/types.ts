@@ -136,4 +136,8 @@ export interface RestTimerState {
   nextSetLabel?: string;
   sound: boolean;
   vibration: boolean;
+  deadlineAt?: number;
+  notificationJobId?: string;
+  cancelledNotificationJobId?: string;
+  endedBy?: 'expired' | 'dismissed';
 }

@@ -1,10 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Exercise, RaceGoal, RestTimerState, SetMeasurements, SyncState, TodayScenario, TrainingProfile, Workout, WorkoutTemplate } from '../types';
 import { initialWorkouts, prototypeMemberId, templates as baseTemplates } from '../data/mockData';
 import { exerciseLookup } from '../data/catalog';
 import { canDeleteCustomExercise, createCustomExercise, updateCustomExercise, type CustomExerciseInput } from '../domain/customExercises';
 import { addExerciseToBlock, addSetToExercise, moveExerciseBlock, replaceExerciseInWorkout, updateTemplateFromWorkout } from '../domain/activeWorkout';
+import { adjustRestTimer, dismissRestTimer, startRestTimer, tickRestTimer, toggleRestTimerPause, workoutDurationMinutes } from '../domain/restTimer';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
+import { syncRestNotificationJob } from '../lib/restNotifications';
 import { clearPersistedOutbox, loadPersistedState, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
 
@@ -180,15 +182,7 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         workouts,
         syncState: syncAfterLocalEdit(state),
-        restTimer: {
-          ...state.restTimer,
-          active: action.restSec > 0,
-          initialSec: action.restSec,
-          remainingSec: action.restSec,
-          paused: false,
-          exerciseName: action.exerciseName,
-          nextSetLabel: action.nextSetLabel,
-        },
+        restTimer: startRestTimer(state.restTimer, action.restSec, Date.now(), action.exerciseName, action.nextSetLabel, crypto.randomUUID()),
       };
     }
     case 'add-set': {
@@ -257,24 +251,24 @@ function reducer(state: AppState, action: Action): AppState {
         ...workout,
         status: 'completed' as const,
         completedAt: now,
-        durationMin: workout.startedAt ? Math.max(1, Math.round((Date.now() - new Date(workout.startedAt).getTime()) / 60000)) : 1,
+        durationMin: workoutDurationMinutes(workout.startedAt, Date.now()),
       }));
-      return { ...state, workouts, restTimer: initialTimer, syncState: syncAfterLocalEdit(state), todayScenario: 'planned', toast: 'Workout finished. Progress recalculated.' };
+      return { ...state, workouts, restTimer: dismissRestTimer(state.restTimer), syncState: syncAfterLocalEdit(state), todayScenario: 'planned', toast: 'Workout finished. Progress recalculated.' };
     }
     case 'discard-workout':
-      return { ...state, workouts: state.workouts.filter((workout) => workout.status !== 'active'), restTimer: initialTimer, syncState: syncAfterLocalEdit(state), todayScenario: 'planned', toast: 'Active workout discarded.' };
+      return { ...state, workouts: state.workouts.filter((workout) => workout.status !== 'active'), restTimer: dismissRestTimer(state.restTimer), syncState: syncAfterLocalEdit(state), todayScenario: 'planned', toast: 'Active workout discarded.' };
     case 'timer-tick':
       if (!state.restTimer.active || state.restTimer.paused) return state;
-      if (state.restTimer.remainingSec <= 1) {
-        return { ...state, restTimer: { ...state.restTimer, active: false, remainingSec: 0 }, toast: 'Rest complete. Next set is ready.' };
+      {
+        const restTimer = tickRestTimer(state.restTimer, Date.now());
+        return { ...state, restTimer, toast: !restTimer.active ? 'Rest complete. Next set is ready.' : state.toast };
       }
-      return { ...state, restTimer: { ...state.restTimer, remainingSec: state.restTimer.remainingSec - 1 } };
     case 'timer-adjust':
-      return { ...state, restTimer: { ...state.restTimer, active: true, remainingSec: Math.max(0, state.restTimer.remainingSec + action.seconds) } };
+      return { ...state, restTimer: adjustRestTimer(state.restTimer, action.seconds, Date.now()) };
     case 'timer-pause':
-      return { ...state, restTimer: { ...state.restTimer, paused: !state.restTimer.paused } };
+      return { ...state, restTimer: toggleRestTimerPause(state.restTimer, Date.now()) };
     case 'timer-skip':
-      return { ...state, restTimer: { ...state.restTimer, active: false, remainingSec: 0 }, toast: 'Rest skipped.' };
+      return { ...state, restTimer: dismissRestTimer(state.restTimer), toast: 'Rest skipped.' };
     case 'timer-sound':
       return { ...state, restTimer: { ...state.restTimer, sound: !state.restTimer.sound } };
     case 'timer-vibration':
@@ -386,7 +380,7 @@ function reducer(state: AppState, action: Action): AppState {
         exercises: [{
           id: `added-item-${Date.now()}`,
           exerciseId: exercise.id,
-          restSec: 90,
+          restSec: exercise.defaultRestSec ?? 90,
           priorSummary: 'No prior performance in this workout',
           sets: [
             { id: `added-set-1-${Date.now()}`, kind: 'working' as const, targetReps: exercise.measurementType.includes('reps') ? 10 : undefined, targetDurationSec: exercise.measurementType.includes('duration') ? 60 : undefined, targetDistanceKm: exercise.measurementType.includes('distance') ? 1 : undefined, completed: false },
@@ -402,7 +396,7 @@ function reducer(state: AppState, action: Action): AppState {
       if (!exercise) return state;
       return {
         ...state,
-        workouts: updateActiveWorkout(state, (workout) => replaceExerciseInWorkout(workout, action.itemId, exercise.id, `${action.itemId}-replacement-${Date.now()}`)),
+        workouts: updateActiveWorkout(state, (workout) => replaceExerciseInWorkout(workout, action.itemId, exercise.id, exercise.defaultRestSec ?? 90, `${action.itemId}-replacement-${Date.now()}`)),
         syncState: syncAfterLocalEdit(state),
         toast: `${exercise.name} replaced the Exercise in this Active Workout.`,
       };
@@ -475,6 +469,10 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, defaultState);
   const persistenceRevision = useRef(0);
+  const wasResting = useRef(false);
+  const syncedNotificationJob = useRef<string | undefined>(undefined);
+  const notificationSyncQueue = useRef(Promise.resolve());
+  const [notificationRetry, setNotificationRetry] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -574,6 +572,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const timer = window.setInterval(() => dispatch({ type: 'timer-tick' }), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (wasResting.current && !state.restTimer.active && state.restTimer.remainingSec === 0 && state.restTimer.endedBy === 'expired') {
+      if (state.restTimer.vibration) navigator.vibrate?.([120, 80, 120]);
+      if (state.restTimer.sound && 'AudioContext' in window) {
+        const audio = new AudioContext();
+        const oscillator = audio.createOscillator();
+        oscillator.connect(audio.destination);
+        oscillator.frequency.value = 880;
+        oscillator.addEventListener('ended', () => void audio.close());
+        oscillator.start();
+        oscillator.stop(audio.currentTime + 0.18);
+      }
+    }
+    wasResting.current = state.restTimer.active;
+  }, [state.restTimer.active, state.restTimer.remainingSec, state.restTimer.sound, state.restTimer.vibration, state.restTimer.endedBy]);
+
+  useEffect(() => {
+    if (!state.memberId || !state.restTimer.notificationJobId) return;
+    const signature = `${state.restTimer.cancelledNotificationJobId ?? 'none'}:${state.restTimer.notificationJobId}:${state.restTimer.deadlineAt ?? state.restTimer.endedBy ?? 'idle'}`;
+    if (signature === syncedNotificationJob.current) return;
+    notificationSyncQueue.current = notificationSyncQueue.current
+      .then(() => syncRestNotificationJob(state.memberId!, state.restTimer))
+      .then(() => { syncedNotificationJob.current = signature; })
+      .catch(() => { window.setTimeout(() => setNotificationRetry((attempt) => attempt + 1), 5000); });
+  }, [notificationRetry, state.memberId, state.restTimer]);
 
   useEffect(() => {
     const reconnect = () => dispatch({ type: 'set-sync', value: 'syncing' });

@@ -23,7 +23,10 @@ const requiredFiles = [
   'src/pages/SettingsPage.tsx',
   'DESIGN-HANDOFF.md',
   'public/manifest.webmanifest',
+  'public/sw.js',
   '.env.example',
+  'supabase/functions/send-rest-notifications/index.ts',
+  'supabase/migrations/20260724000000_rest_timer_notifications.sql',
   'supabase/config.toml',
   'supabase/migrations/20260723000000_private_member_state.sql',
   'supabase/tests/member_state_rls.test.sql',
@@ -65,6 +68,8 @@ for (const rule of ['createClient', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHA
   if (!supabaseSource.includes(rule)) errors.push(`Supabase client rule not found: ${rule}`);
 }
 if (/service[_-]?role/i.test(supabaseSource)) errors.push('Supabase client must not include a service-role credential.');
+const environmentExample = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
+if (!environmentExample.includes('VITE_VAPID_PUBLIC_KEY')) errors.push('Web Push public-key configuration is missing.');
 const remoteStateSource = fs.readFileSync(path.join(root, 'src/state/remoteState.ts'), 'utf8');
 for (const rule of ['member_state', '.eq(\'member_id\'', '.upsert']) {
   if (!remoteStateSource.includes(rule)) errors.push(`Remote state rule not found: ${rule}`);

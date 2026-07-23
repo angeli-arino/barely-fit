@@ -26,7 +26,7 @@ export function moveExerciseBlock(workout: Workout, blockId: string, direction: 
   return { ...workout, blocks };
 }
 
-export function replaceExerciseInWorkout(workout: Workout, itemId: string, exerciseId: string, replacementItemId: string): Workout {
+export function replaceExerciseInWorkout(workout: Workout, itemId: string, exerciseId: string, restSec: number, replacementItemId: string): Workout {
   return {
     ...workout,
     blocks: workout.blocks.map((block) => ({
@@ -35,11 +35,11 @@ export function replaceExerciseInWorkout(workout: Workout, itemId: string, exerc
         if (item.id !== itemId) return [item];
         const completed = item.sets.filter((set) => set.completed);
         const remaining = item.sets.filter((set) => !set.completed);
-        if (completed.length === 0) return [{ ...item, exerciseId, priorSummary: 'No prior performance for this replacement' }];
+        if (completed.length === 0) return [{ ...item, exerciseId, restSec, priorSummary: 'No prior performance for this replacement' }];
         if (remaining.length === 0) return [item];
         return [
           { ...item, sets: completed },
-          { ...item, id: replacementItemId, exerciseId, sets: remaining, priorSummary: 'No prior performance for this replacement' },
+          { ...item, id: replacementItemId, exerciseId, restSec, sets: remaining, priorSummary: 'No prior performance for this replacement' },
         ];
       }),
     })),

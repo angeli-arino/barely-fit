@@ -27,11 +27,12 @@ test('replaces only the remaining Sets while retaining completed work with its o
   const remaining = set('remaining');
   const source = workout([block('block-1', [item('item-1', 'squat', [recorded, remaining])])]);
 
-  const result = replaceExerciseInWorkout(source, 'item-1', 'deadlift', 'deadlift-item');
+  const result = replaceExerciseInWorkout(source, 'item-1', 'deadlift', 120, 'deadlift-item');
 
   assert.equal(result.blocks[0].exercises[0].exerciseId, 'squat');
   assert.deepEqual(result.blocks[0].exercises[0].sets, [recorded]);
   assert.equal(result.blocks[0].exercises[1].exerciseId, 'deadlift');
+  assert.equal(result.blocks[0].exercises[1].restSec, 120);
   assert.deepEqual(result.blocks[0].exercises[1].sets, [remaining]);
   assert.equal(source.blocks[0].exercises[0].exerciseId, 'squat');
 });
