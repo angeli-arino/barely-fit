@@ -7,22 +7,24 @@ import { Surface } from '../components/ui/Surface';
 import { useAppState } from '../state/AppState';
 import { raceGoalValidationError } from '../state/trainingProfileState';
 import type { RaceGoal, SyncState, TodayScenario } from '../types';
-import { canEnableRestNotifications, enableRestNotifications } from '../lib/restNotifications';
+import { canEnableBackgroundNotifications, enableBackgroundNotifications } from '../lib/restNotifications';
 import { currentDateInAuckland } from '../lib';
+import { allowedWorkoutReminderTime } from '../domain/workoutReminders';
 
 export function SettingsPage() {
-  const { syncState, todayScenario, trainingProfile, raceGoals, restTimer, memberId, dispatch, signOut } = useAppState();
+  const { syncState, todayScenario, trainingProfile, raceGoals, workouts, restTimer, memberId, dispatch, signOut } = useAppState();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [timerNotifications, setTimerNotifications] = useState(restTimer.sound || restTimer.vibration);
   const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => notificationsSupported ? Notification.permission : 'unsupported');
-  const [workoutReminders, setWorkoutReminders] = useState(false);
   const [saved, setSaved] = useState(false);
   const [profileDraft, setProfileDraft] = useState(trainingProfile);
   const [raceGoalDraft, setRaceGoalDraft] = useState<RaceGoal>();
   const today = currentDateInAuckland();
   const raceGoalDraftIsValid = Boolean(raceGoalDraft && !raceGoalValidationError(raceGoalDraft, today));
+  const memberHasWorkoutReminders = trainingProfile.defaultReminderTime != null
+    || workouts.some((workout) => workout.status === 'planned' && typeof workout.reminderTime === 'string');
 
   const setAppTheme = (next: 'dark' | 'light') => {
     setTheme(next);
@@ -42,9 +44,25 @@ export function SettingsPage() {
     dispatch({ type: 'set-loading', value: true });
     window.setTimeout(() => dispatch({ type: 'set-loading', value: false }), 900);
   };
-  const requestTimerNotifications = async () => {
+  const requestBackgroundNotifications = async () => {
     if (!memberId || !notificationsSupported || !window.matchMedia('(display-mode: standalone)').matches) return;
-    setNotificationPermission(await enableRestNotifications(memberId));
+    const permission = await enableBackgroundNotifications(memberId);
+    setNotificationPermission(permission);
+    return permission;
+  };
+  const setWorkoutReminders = async (checked: boolean) => {
+    let permission = notificationPermission;
+    if (checked && !memberHasWorkoutReminders && notificationPermission !== 'granted') {
+      permission = await requestBackgroundNotifications() ?? notificationPermission;
+    }
+    const profile = {
+      ...trainingProfile,
+      defaultReminderTime: checked
+        ? allowedWorkoutReminderTime(permission, trainingProfile.defaultReminderTime ?? '08:00', memberHasWorkoutReminders)
+        : null,
+    };
+    dispatch({ type: 'save-training-profile', profile });
+    setProfileDraft(profile);
   };
 
   return (
@@ -103,9 +121,30 @@ export function SettingsPage() {
 
       <Section title="Notifications" icon={<Bell size={19} />} description="Permission and delivery state for time-sensitive training cues.">
         <SettingToggle label="Foreground rest alerts" description="Sound and vibration when rest reaches zero while Barely Fit is open." checked={timerNotifications} onCheckedChange={(checked) => { setTimerNotifications(checked); if (restTimer.sound !== checked) dispatch({ type: 'timer-sound' }); if (restTimer.vibration !== checked) dispatch({ type: 'timer-vibration' }); }} status={timerNotifications ? 'On' : 'Off'} />
-        <SettingToggle label="Workout reminders" description="Optional reminder before a planned workout." checked={workoutReminders} onCheckedChange={setWorkoutReminders} status={workoutReminders ? 'Allowed' : 'Off'} />
-        <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--bg-elevated)] p-3 text-sm leading-6 text-[var(--text-muted)]"><strong className="text-[var(--text)]">Background rest alerts require the installed PWA.</strong> Add Barely Fit to your Home Screen, then allow notifications. We only use permission to tell you that a Rest Timer has finished.</div>
-        {notificationPermission === 'unsupported' || !canEnableRestNotifications() ? <p className="mt-3 text-sm text-[var(--text-muted)]">Background alerts are unavailable until this deployment is configured for Web Push.</p> : notificationPermission === 'granted' ? <p className="mt-3 text-sm font-semibold text-[var(--success)]">Rest timer notifications are allowed on this device.</p> : <Button className="mt-3" onClick={() => void requestTimerNotifications()} disabled={!window.matchMedia('(display-mode: standalone)').matches}>Enable background rest alerts</Button>}
+        <SettingToggle
+          label="Workout reminders"
+          description="Notify me for upcoming Planned Workouts. Customize individual workouts in the Plan."
+          checked={trainingProfile.defaultReminderTime != null}
+          onCheckedChange={(checked) => void setWorkoutReminders(checked)}
+          status={trainingProfile.defaultReminderTime ? `At ${trainingProfile.defaultReminderTime}` : 'Off'}
+        />
+        {trainingProfile.defaultReminderTime && (
+          <div className="flex items-center gap-3 border-b border-[var(--border)] py-3 last:border-b-0">
+            <div className="min-w-0 flex-1 pl-10 text-sm font-bold text-[var(--text-muted)]">Default time of day</div>
+            <input
+              type="time"
+              className="input w-32"
+              value={trainingProfile.defaultReminderTime}
+              onChange={(event) => {
+                const profile = { ...trainingProfile, defaultReminderTime: event.target.value };
+                dispatch({ type: 'save-training-profile', profile });
+                setProfileDraft(profile);
+              }}
+            />
+          </div>
+        )}
+        <div className="mt-3 rounded-[var(--radius-md)] bg-[var(--bg-elevated)] p-3 text-sm leading-6 text-[var(--text-muted)]"><strong className="text-[var(--text)]">Background alerts require the installed PWA.</strong> Add Barely Fit to your Home Screen, then allow notifications. We only use permission to deliver training cues and reminders.</div>
+        {notificationPermission === 'unsupported' || !canEnableBackgroundNotifications() ? <p className="mt-3 text-sm text-[var(--text-muted)]">Background alerts are unavailable until this deployment is configured for Web Push.</p> : notificationPermission === 'granted' ? <p className="mt-3 text-sm font-semibold text-[var(--success)]">Notifications are allowed on this device.</p> : <Button className="mt-3" onClick={() => void requestBackgroundNotifications()} disabled={!window.matchMedia('(display-mode: standalone)').matches}>Enable background alerts</Button>}
       </Section>
 
       <Section title="Install on iPhone" icon={<Download size={19} />} description="Shown when the app is not detected as installed.">

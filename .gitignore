@@ -19,6 +19,7 @@ playwright-report/
 test-results/
 .wrangler/
 .supabase/
+supabase/.temp/
 .scratch/
 .test-build/
 

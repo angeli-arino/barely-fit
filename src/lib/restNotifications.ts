@@ -7,12 +7,12 @@ function decodeVapidKey(value: string): ArrayBuffer {
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0)).buffer as ArrayBuffer;
 }
 
-export function canEnableRestNotifications(): boolean {
+export function canEnableBackgroundNotifications(): boolean {
   return Boolean(supabase && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && import.meta.env.VITE_VAPID_PUBLIC_KEY);
 }
 
-export async function enableRestNotifications(memberId: string): Promise<NotificationPermission | 'unsupported'> {
-  if (!canEnableRestNotifications()) return 'unsupported';
+export async function enableBackgroundNotifications(memberId: string): Promise<NotificationPermission | 'unsupported'> {
+  if (!canEnableBackgroundNotifications()) return 'unsupported';
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return permission;
   const registration = await navigator.serviceWorker.ready;

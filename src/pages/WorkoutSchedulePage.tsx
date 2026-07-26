@@ -8,6 +8,8 @@ import { Button } from '../components/ui/Button';
 import { Sheet } from '../components/ui/Sheet';
 import { currentDateInAuckland, formatDate } from '../lib';
 import { addCalendarDays, calendarWeekStart, workoutSchedule } from '../domain/workoutSchedule';
+import { allowedWorkoutReminderTime } from '../domain/workoutReminders';
+import { canEnableBackgroundNotifications, enableBackgroundNotifications } from '../lib/restNotifications';
 
 const weekdayOptions = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
@@ -23,7 +25,7 @@ const statusStyle: Record<Workout['status'], string> = {
 };
 
 export function WorkoutSchedulePage() {
-  const { workouts, templates, memberId, dispatch } = useAppState();
+  const { workouts, templates, memberId, trainingProfile, dispatch } = useAppState();
   const navigate = useNavigate();
   const today = useMemo(currentDateInAuckland, []);
   const [selectedDate, setSelectedDate] = useState(today);
@@ -37,6 +39,11 @@ export function WorkoutSchedulePage() {
   const [createRecurring, setCreateRecurring] = useState(false);
   const [createWeekdays, setCreateWeekdays] = useState<number[]>([]);
   const [createEndDate, setCreateEndDate] = useState(() => addCalendarDays(today, 84));
+  const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => notificationsSupported ? Notification.permission : 'unsupported');
+  const installedPwa = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches;
+  const memberHasWorkoutReminders = trainingProfile.defaultReminderTime != null
+    || workouts.some((workout) => workout.status === 'planned' && typeof workout.reminderTime === 'string');
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const iso = addCalendarDays(weekStart, index);
     const date = new Date(`${iso}T12:00:00Z`);
@@ -56,6 +63,22 @@ export function WorkoutSchedulePage() {
   const openWorkout = (workout: Workout) => {
     setSelectedWorkout(workout);
     setRescheduleDate(workout.date);
+  };
+  const updateReminder = (reminderTime: string | null | undefined) => {
+    if (!selectedWorkout) return;
+    dispatch({ type: 'update-workout-reminder', workoutId: selectedWorkout.id, reminderTime });
+    setSelectedWorkout({ ...selectedWorkout, reminderTime });
+  };
+  const selectReminderMode = async (reminderMode: string) => {
+    if (reminderMode === 'default') return updateReminder(undefined);
+    if (reminderMode === 'disabled') return updateReminder(null);
+    let permission = notificationPermission;
+    if (!memberHasWorkoutReminders && permission !== 'granted' && memberId && installedPwa) {
+      permission = await enableBackgroundNotifications(memberId);
+      setNotificationPermission(permission);
+    }
+    const reminderTime = allowedWorkoutReminderTime(permission, '08:00', memberHasWorkoutReminders);
+    if (reminderTime) updateReminder(reminderTime);
   };
 
   const applyReschedule = () => {
@@ -133,7 +156,42 @@ export function WorkoutSchedulePage() {
         {selectedWorkout && <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] bg-[var(--surface)] p-4"><div><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">Date</div><div className="mt-1 font-bold">{formatDate(selectedWorkout.date, { weekday: 'short', day: 'numeric', month: 'short' })}</div></div><div><div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)]">State</div><div className="mt-1 capitalize font-bold">{selectedWorkout.status}</div></div></div>
           {selectedWorkout.status === 'planned' && <>
-            <label className="block"><span className="mb-2 block text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]">Move to</span><input type="date" value={rescheduleDate} onChange={(event) => setRescheduleDate(event.target.value)} className="min-h-12 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-[var(--text)]" /></label>
+            <div className="rounded-[var(--radius-md)] bg-[var(--surface)] p-4 border border-[var(--border)]">
+              <div className="text-xs font-bold uppercase tracking-[.1em] text-[var(--text-faint)] mb-2">Reminder</div>
+              <select
+                className="min-h-12 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] px-3 text-[var(--text)] font-semibold"
+                value={selectedWorkout.reminderTime === undefined ? 'default' : selectedWorkout.reminderTime === null ? 'disabled' : 'custom'}
+                onChange={(event) => void selectReminderMode(event.target.value)}
+              >
+                <option value="default">Default ({trainingProfile.defaultReminderTime ? `At ${trainingProfile.defaultReminderTime}` : 'Off'})</option>
+                <option value="custom">Custom time</option>
+                <option value="disabled">Disabled</option>
+              </select>
+              {selectedWorkout.reminderTime !== undefined && selectedWorkout.reminderTime !== null && (
+                <input
+                  type="time"
+                  className="input mt-3 w-full"
+                  value={selectedWorkout.reminderTime}
+                  onChange={(event) => updateReminder(event.target.value)}
+                />
+              )}
+              {!trainingProfile.defaultReminderTime && selectedWorkout.reminderTime === undefined && (
+                <p className="mt-3 text-sm leading-6 text-[var(--text-muted)]">Workout Reminders are off. <Link className="font-semibold text-[var(--accent)]" to="/settings">Enable notifications in Settings</Link>, or choose a custom time here after permission is allowed.</p>
+              )}
+              <p className="mt-3 text-xs leading-5 text-[var(--text-faint)]">Background delivery requires Barely Fit to be added to your Home Screen with notifications allowed. Reminder text does not include the Workout name.</p>
+              {memberHasWorkoutReminders && notificationPermission !== 'granted' ? (
+                <p className="mt-2 text-xs font-semibold text-[var(--text-muted)]">You can edit the Member-wide schedule here; delivery continues through devices where notifications are allowed.</p>
+              ) : !canEnableBackgroundNotifications() ? (
+                <p className="mt-2 text-xs font-semibold text-[var(--warning)]">Web Push is unavailable on this device or deployment.</p>
+              ) : !installedPwa ? (
+                <p className="mt-2 text-xs font-semibold text-[var(--warning)]">Add Barely Fit to your Home Screen before enabling a custom reminder.</p>
+              ) : notificationPermission !== 'granted' ? (
+                <p className="mt-2 text-xs font-semibold text-[var(--warning)]">Choosing a custom time will ask this device for notification permission.</p>
+              ) : (
+                <p className="mt-2 text-xs font-semibold text-[var(--success)]">Notifications are allowed on this device.</p>
+              )}
+            </div>
+            <label className="block mt-2"><span className="mb-2 block text-xs font-bold uppercase tracking-[.1em] text-[var(--text-muted)]">Move to</span><input type="date" value={rescheduleDate} onChange={(event) => setRescheduleDate(event.target.value)} className="min-h-12 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 text-[var(--text)]" /></label>
             <Button full variant="primary" onClick={applyReschedule}>Reschedule</Button>
             <Button full onClick={() => startLate(selectedWorkout.id)} icon={<Check size={17} />}>{selectedWorkout.date < today ? 'Complete late' : 'Start Workout'}</Button>
             <Button full variant="ghost" onClick={() => { dispatch({ type: 'update-planned-workout', workoutId: selectedWorkout.id, status: 'skipped' }); setSelectedWorkout(null); }} icon={<SkipForward size={17} />}>Mark skipped</Button>

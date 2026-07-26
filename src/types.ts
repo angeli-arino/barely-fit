@@ -106,6 +106,7 @@ export interface Workout {
   recurrenceSeriesId?: string;
   recurrenceEndDate?: string;
   plannedDate?: string;
+  reminderTime?: string | null;
 }
 
 export interface RaceGoal {
@@ -126,6 +127,7 @@ export interface TrainingProfile {
   preferredExercises: string;
   avoidedExercises: string;
   physicalLimitations?: string;
+  defaultReminderTime?: string | null;
 }
 
 export interface RestTimerState {

@@ -9,6 +9,8 @@ import { chooseRecoveredHistory, correctCompletedWorkout, deleteCompletedWorkout
 import { planWorkoutTemplate, reschedulePlannedWorkout, resolvePlannedWorkout, startPlannedWorkout } from '../domain/workoutSchedule';
 import { supabase, supabaseConfigurationError, validateMemberSession } from '../lib/supabase';
 import { syncRestNotificationJob } from '../lib/restNotifications';
+import { syncWorkoutReminderJobs } from '../lib/workoutReminders';
+import { updatePlannedWorkoutReminder } from '../domain/workoutReminders';
 import { clearPersistedOutbox, loadPersistedStateSnapshot, savePersistedState } from './persistence';
 import { loadRemoteState, saveRemoteState } from './remoteState';
 import { applyTrainingProfileAction, syncAfterLocalEdit } from './trainingProfileState';
@@ -56,6 +58,7 @@ type Action =
   | { type: 'update-planned-workout'; workoutId: string; status: Workout['status']; date?: string }
   | { type: 'reschedule-planned-workout'; workoutId: string; date: string; scope: 'occurrence' | 'future' }
   | { type: 'start-planned-workout'; workoutId: string; performedDate: string }
+  | { type: 'update-workout-reminder'; workoutId: string; reminderTime: string | null | undefined }
   | { type: 'add-planned-workout'; templateId: string; date: string; weekdays?: number[]; endDate?: string; mutationId: string; today: string }
   | { type: 'save-template'; template: WorkoutTemplate }
   | { type: 'save-training-profile'; profile: TrainingProfile }
@@ -300,6 +303,16 @@ function reducer(state: AppState, action: Action): AppState {
         todayScenario: 'active',
       };
     }
+    case 'update-workout-reminder': {
+      const workouts = updatePlannedWorkoutReminder(state.workouts, action.workoutId, state.memberId ?? '', action.reminderTime);
+      if (workouts === state.workouts) return state;
+      return {
+        ...state,
+        workouts,
+        syncState: syncAfterLocalEdit(state),
+        toast: 'Workout reminder updated.',
+      };
+    }
     case 'add-planned-workout': {
       const source = state.templates.find((template) => template.id === action.templateId && template.memberId === state.memberId);
       if (!source || !state.memberId) return state;
@@ -446,6 +459,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const persistenceRevision = useRef(0);
   const wasResting = useRef(false);
   const syncedNotificationJob = useRef<string | undefined>(undefined);
+  const lastWorkoutRemindersSignature = useRef('');
   const notificationSyncQueue = useRef(Promise.resolve());
   const [notificationRetry, setNotificationRetry] = useState(0);
 
@@ -576,6 +590,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       .then(() => { syncedNotificationJob.current = signature; })
       .catch(() => { window.setTimeout(() => setNotificationRetry((attempt) => attempt + 1), 5000); });
   }, [notificationRetry, state.memberId, state.restTimer]);
+
+  useEffect(() => {
+    if (!state.memberId || !state.authenticated) return;
+    const signature = `${state.trainingProfile.defaultReminderTime ?? ''}|${state.workouts.filter(w => w.status === 'planned').map(w => `${w.id}:${w.date}:${w.reminderTime === undefined ? 'default' : w.reminderTime === null ? 'disabled' : w.reminderTime}`).join(',')}`;
+    if (signature === lastWorkoutRemindersSignature.current) return;
+    notificationSyncQueue.current = notificationSyncQueue.current
+      .then(() => syncWorkoutReminderJobs(state.memberId!, state.workouts, state.trainingProfile))
+      .then(() => { lastWorkoutRemindersSignature.current = signature; })
+      .catch(() => { window.setTimeout(() => setNotificationRetry((attempt) => attempt + 1), 5000); });
+  }, [state.memberId, state.authenticated, state.workouts, state.trainingProfile.defaultReminderTime, notificationRetry]);
 
   useEffect(() => {
     const reconnect = () => dispatch({ type: 'set-sync', value: 'syncing' });
