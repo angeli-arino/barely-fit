@@ -32,8 +32,9 @@ const requiredFiles = [
   'supabase/config.toml',
   'supabase/migrations/20260723000000_private_member_state.sql',
   'supabase/tests/member_state_rls.test.sql',
-  '.github/workflows/deploy-pages.yml',
-  '.github/workflows/database-tests.yml',
+  '.github/workflows/release.yml',
+  'docs/private-beta-operations.md',
+  'scripts/verify-release.mjs',
 ];
 
 const routes = [
@@ -94,19 +95,15 @@ for (const rule of ['select plan(6)', 'unapproved identity cannot create', 'clie
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.webmanifest'), 'utf8'));
 if (manifest.display !== 'standalone') errors.push('Manifest must use standalone display.');
 if (!Array.isArray(manifest.icons) || manifest.icons.length < 2) errors.push('Manifest icons are incomplete.');
-if (manifest.start_url !== './' || manifest.scope !== './') errors.push('Manifest must remain within the GitHub Pages project path.');
+if (manifest.start_url !== './' || manifest.scope !== './') errors.push('Manifest must remain within its deployment scope.');
 
 const viteSource = fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8');
-if (!viteSource.includes("'/barely-fit/'")) errors.push('Vite GitHub Pages base path is missing.');
+if (!viteSource.includes("mode === 'e2e' ? '/barely-fit/' : '/'")) errors.push('Cloudflare production and nested E2E base paths are missing.');
 const mainSource = fs.readFileSync(path.join(root, 'src/main.tsx'), 'utf8');
-if (!mainSource.includes('basename={import.meta.env.BASE_URL}')) errors.push('Router GitHub Pages basename is missing.');
-const pagesWorkflow = fs.readFileSync(path.join(root, '.github/workflows/deploy-pages.yml'), 'utf8');
-for (const rule of ['actions/configure-pages', 'actions/upload-pages-artifact', 'actions/deploy-pages', 'dist/404.html']) {
-  if (!pagesWorkflow.includes(rule)) errors.push(`GitHub Pages workflow rule not found: ${rule}`);
-}
-const databaseWorkflow = fs.readFileSync(path.join(root, '.github/workflows/database-tests.yml'), 'utf8');
-for (const rule of ['supabase/setup-cli@', 'supabase db start', 'supabase test db --local']) {
-  if (!databaseWorkflow.includes(rule)) errors.push(`Database test workflow rule not found: ${rule}`);
+if (!mainSource.includes('basename={import.meta.env.BASE_URL}')) errors.push('Router deployment basename is missing.');
+const releaseWorkflow = fs.readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8');
+for (const rule of ['pnpm test:browser', 'pnpm verify:release', 'supabase db start', 'supabase test db --local', 'cloudflare/wrangler-action@', 'pages deploy dist --project-name=barely-fit']) {
+  if (!releaseWorkflow.includes(rule)) errors.push(`Release workflow rule not found: ${rule}`);
 }
 
 if (errors.length) {

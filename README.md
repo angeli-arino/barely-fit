@@ -18,6 +18,7 @@ Useful verification commands:
 
 ```bash
 pnpm verify:static
+pnpm verify:release
 pnpm typecheck
 pnpm build
 pnpm test:db # requires the Supabase CLI and a local Supabase stack
@@ -38,14 +39,16 @@ The browser only reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (
    insert into private.authorized_members (member_id)
    select id from auth.users where email = 'member@example.com';
    ```
-3. Add the project URL and publishable key as GitHub repository variables named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`.
+3. Add the project URL, publishable key, and Web Push public key as GitHub repository variables named `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `VAPID_PUBLIC_KEY`.
 4. Run `supabase test db` to execute the cross-Member RLS test, then deploy `main`.
 
 Supabase persists and silently refreshes the Member session. The app stores Workout state locally first and synchronizes the authenticated, pre-authorized Member's snapshot through the RLS-protected `member_state` table when online.
 
-## GitHub Pages
+## Cloudflare Pages
 
-The production site deploys from `main` to [angeli-arino.github.io/barely-fit](https://angeli-arino.github.io/barely-fit/) through `.github/workflows/deploy-pages.yml`. The build uses the `/barely-fit/` project base path and includes a `404.html` SPA fallback so direct links to application routes continue to work.
+Production deploys from `main` to the `barely-fit` Cloudflare Pages project through `.github/workflows/release.yml`. Configure `CLOUDFLARE_ACCOUNT_ID` and a Pages-edit `CLOUDFLARE_API_TOKEN` as GitHub Actions secrets. Pull requests run unit, browser, public-bundle/secret, and database-policy gates without deploying.
+
+See the [solo private-beta operations runbook](docs/private-beta-operations.md) for iPhone installation, restore, failure-state drills, and troubleshooting.
 
 ## Project documentation
 
@@ -57,11 +60,7 @@ The production site deploys from `main` to [angeli-arino.github.io/barely-fit](h
 - [Implemented design handoff](DESIGN-HANDOFF.md)
 - [Implementation tickets](https://github.com/angeli-arino/barely-fit/issues)
 
-## Current frontier
-
-[Issue #1 — Deploy a testable Barely Fit prototype](https://github.com/angeli-arino/barely-fit/issues/1) is the first unblocked implementation slice.
-
-## Planned stack
+## Production stack
 
 - Supabase Free for Postgres, authentication, Row Level Security, and future server-side integrations
 - Cloudflare Free for static PWA hosting
